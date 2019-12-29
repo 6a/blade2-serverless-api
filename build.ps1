@@ -11,7 +11,7 @@ else
     $env:GOOS = "linux"; 
     $binary = "$function.bin"
     $zip = "$function.zip"
-    $entrypoint = "./endpoints/$function.go"
+    $entrypoint = "./internal/endpoints/$function.go"
 
 
     go build -o $binary $entrypoint; 
