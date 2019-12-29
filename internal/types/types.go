@@ -53,5 +53,5 @@ type Leaderboard struct {
 // Response is the standard response struct
 type Response struct {
 	StatusCode int    `json:"statusCode"`
-	Message    string `json:"body"`
+	Body       string `json:"body"`
 }

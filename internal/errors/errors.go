@@ -23,6 +23,7 @@ const None B2ErrorCode = iota
 // Generic errors
 const (
 	RequestMarshalError B2ErrorCode = iota + 100
+	DatabaseError
 )
 
 // Create account errors

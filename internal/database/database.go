@@ -2,11 +2,11 @@ package database
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 
+	"github.com/6a/blade-ii-api/internal/settings"
 	"github.com/6a/blade-ii-api/pkg/rid"
 
 	"github.com/alexedwards/argon2id"
@@ -32,9 +32,12 @@ var dbname = os.Getenv("db_name")
 var dbtableUsers = os.Getenv("db_table_users")
 var dbtableProfiles = os.Getenv("db_table_profiles")
 var dbtableMatches = os.Getenv("db_table_matches")
+var dbtableTokens = os.Getenv("db_table_tokens")
 
-var psCreateAccount = fmt.Sprintf("INSERT INTO `%v`.`%v` (`public_id`, `handle`, `email`, `saltedhash`, `email_confirmation_token`) VALUES (?, ?, ?, ?, ?);", dbname, dbtableUsers)
-var psCheckName = fmt.Sprintf("SELECT EXISTS(SELECT * FROM `%v`.`%v` WHERE `name` = ?);", dbname, dbtableUsers)
+var psCreateAccount = fmt.Sprintf("INSERT INTO `%v`.`%v` (`public_id`, `handle`, `email`, `salted_hash`) VALUES (?, ?, ?, ?);", dbname, dbtableUsers)
+var psAddEmailConfirmationToken = fmt.Sprintf("INSERT INTO `%v`.`%v` (`id`, `email_confirmation`, `email_expiry`) VALUES (LAST_INSERT_ID(), ?, DATE_ADD(NOW(), INTERVAL ? HOUR));", dbname, dbtableTokens)
+
+var psCheckName = fmt.Sprintf(`SELECT EXISTS(SELECT * FROM %v.%v WHERE handle = ?);`, dbname, dbtableUsers)
 
 // var psCheckAuth = fmt.Sprintf("SELECT `saltedpasswordhash`, `banned` FROM `%v`.`%v` WHERE `name` = ?;", dbname, dbtable)
 // var psGetTopN = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `name`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` ORDER BY `rank` = 0, `rank`, `winratio` DESC LIMIT ?;", dbname, dbtable)
@@ -55,17 +58,15 @@ func Init() {
 
 // CreateUser creates a user account
 func CreateUser(handle string, email string, password string) (emailValidationToken string, err error) {
-	exists, err := UserExists(handle)
+	transaction, err := db.Begin()
+
 	if err != nil {
 		return "", err
 	}
 
-	if exists {
-		return "", errors.New("Handle already in use")
-	}
-
 	statement, err := db.Prepare(psCreateAccount)
 	if err != nil {
+		transaction.Rollback()
 		return "", err
 	}
 
@@ -73,19 +74,37 @@ func CreateUser(handle string, email string, password string) (emailValidationTo
 
 	saltedhash, err := argon2id.CreateHash(password, &argonParams)
 	if err != nil {
-		return "", err
-	}
-
-	emailConfirmationToken, err := rid.RandomString(32)
-	if err != nil {
+		transaction.Rollback()
 		return "", err
 	}
 
 	publicID := xid.New()
-	_, err = statement.Exec(publicID, handle, email, saltedhash, emailConfirmationToken)
+	_, err = statement.Exec(publicID, handle, email, saltedhash)
 	if err != nil {
+		transaction.Rollback()
 		return "", err
 	}
+
+	emailConfirmationToken, err := rid.RandomString(settings.EmailConfirmationTokenLength)
+
+	if err != nil {
+		transaction.Rollback()
+		return "", err
+	}
+
+	statement, err = db.Prepare(psAddEmailConfirmationToken)
+	if err != nil {
+		transaction.Rollback()
+		return "", err
+	}
+
+	_, err = statement.Exec(emailConfirmationToken, settings.EmailConfirmationTokenLifetime)
+	if err != nil {
+		transaction.Rollback()
+		return "", err
+	}
+
+	transaction.Commit()
 
 	return emailConfirmationToken, err
 }

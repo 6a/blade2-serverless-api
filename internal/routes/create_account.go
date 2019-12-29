@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"strings"
 
 	"github.com/6a/blade-ii-api/internal/database"
+	"github.com/6a/blade-ii-api/internal/email"
 	"github.com/6a/blade-ii-api/internal/errors"
 	"github.com/6a/blade-ii-api/internal/types"
 	"github.com/6a/blade-ii-api/internal/validation"
@@ -20,7 +21,7 @@ func CreateAccount(ctx context.Context, request events.APIGatewayProxyRequest) (
 	err = json.Unmarshal([]byte(request.Body), &ucr)
 	if err != nil {
 		r.StatusCode = 400
-		r.Message = errors.Make(
+		r.Body = errors.Make(
 			errors.RequestMarshalError,
 			"Could not unmarshal message body",
 		).ToJSON()
@@ -28,54 +29,69 @@ func CreateAccount(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return r, nil
 	}
 
-	fieldsValid, message := validateFields(ucr)
+	fieldsValid, body := validateFields(ucr)
 	if !fieldsValid {
 		r.StatusCode = 400
-		r.Message = message
+		r.Body = body
 
 		return r, nil
 	}
 
-	handleLengthValid, message := validateHandleLength(*ucr.Handle)
+	handleLengthValid, body := validateHandleLength(*ucr.Handle)
 	if !handleLengthValid {
 		r.StatusCode = 400
-		r.Message = message
+		r.Body = body
 
 		return r, nil
 	}
 
-	handleCharactersValid, message := validateHandleFormat(*ucr.Handle)
+	handleCharactersValid, body := validateHandleFormat(*ucr.Handle)
 	if !handleCharactersValid {
 		r.StatusCode = 400
-		r.Message = message
+		r.Body = body
 
 		return r, nil
 	}
 
-	emailCharactersValid, message := validateEmailFormat(*ucr.Email)
+	emailCharactersValid, body := validateEmailFormat(*ucr.Email)
 	if !emailCharactersValid {
 		r.StatusCode = 400
-		r.Message = message
+		r.Body = body
 
 		return r, nil
 	}
 
-	passwordLengthValid, message := validatePasswordFormat(*ucr.Password)
+	passwordLengthValid, body := validatePasswordFormat(*ucr.Password)
 	if !passwordLengthValid {
 		r.StatusCode = 400
-		r.Message = message
+		r.Body = body
 
 		return r, nil
 	}
 
 	emailConfirmationToken, err := database.CreateUser(*ucr.Handle, *ucr.Email, *ucr.Password)
+	if err != nil {
+		r.StatusCode = 500
+		r.Body = packageCreateAccountError(err)
 
-	log.Printf(emailConfirmationToken)
+		return r, nil
+	}
+
+	err = email.SendEmailConfirmation(*ucr.Email, *ucr.Handle, emailConfirmationToken)
+	if err != nil {
+		r.StatusCode = 500
+		r.Body = packageEmailError(err)
+
+		return r, nil
+	}
+
+	r.StatusCode = 200
+	r.Body = errors.Make(errors.None, fmt.Sprintf("Account created [ %v | %v ]", *ucr.Handle, *ucr.Email)).ToJSON()
 
 	return r, nil
 }
 
-func validateFields(target types.UserCreationRequest) (ok bool, message string) {
+func validateFields(target types.UserCreationRequest) (ok bool, body string) {
 	var field string
 	var err uint16
 	var expectedType string
@@ -97,35 +113,35 @@ func validateFields(target types.UserCreationRequest) (ok bool, message string) 
 	}
 
 	if len(field) != 0 {
-		message = errors.Make(
+		body = errors.Make(
 			err,
 			fmt.Sprintf("Field (%v of type %v) not found, or could not be parsed due to incorrect typing", field, expectedType),
 		).ToJSON()
 	}
 
-	return ok, message
+	return ok, body
 }
 
-func validateHandleLength(handle string) (valid bool, message string) {
+func validateHandleLength(handle string) (valid bool, body string) {
 	min, max := validation.UsernameMinLength, validation.UsernameMaxLength
 	handleLength := len([]rune(handle))
 	valid = handleLength >= min && handleLength <= max
 
 	if !valid {
-		message = errors.Make(
+		body = errors.Make(
 			errors.HandleLength,
 			fmt.Sprintf("handle must be between %v and %v characters", min, max),
 		).ToJSON()
 	}
 
-	return valid, message
+	return valid, body
 }
 
-func validatePasswordFormat(password string) (valid bool, message string) {
+func validatePasswordFormat(password string) (valid bool, body string) {
 	valid = validation.ValidPasswordChars.MatchString(password)
 
 	if !valid {
-		message = errors.Make(
+		body = errors.Make(
 			errors.PasswordFormat,
 			"Passwords can only contain printable ASCII characters",
 		).ToJSON()
@@ -138,7 +154,8 @@ func validatePasswordFormat(password string) (valid bool, message string) {
 			containsAtLeastOneLowerCaseChar := validation.LowerCaseAtAnyPosition.MatchString(password)
 
 			if !meetsMinLengthRequirement || !containsAtLeastOneNumber || !containsAtLeastOneLowerCaseChar {
-				message = errors.Make(
+				valid = false
+				body = errors.Make(
 					errors.PasswordComplexityInsufficient,
 					"Passwords does not meet minimum complexity requirements",
 				).ToJSON()
@@ -146,31 +163,59 @@ func validatePasswordFormat(password string) (valid bool, message string) {
 		}
 	}
 
-	return valid, message
+	return valid, body
 }
 
-func validateHandleFormat(handle string) (valid bool, message string) {
+func validateHandleFormat(handle string) (valid bool, body string) {
 	valid = validation.NoSpaceAtStart.MatchString(handle) && validation.ValidUsernameRegex.MatchString(handle)
 
 	if !valid {
-		message = errors.Make(
+		body = errors.Make(
 			errors.HandleFormat,
 			"Handles can only contain full-width japanese characters, half-width alphanumerical characters and certain symbols",
 		).ToJSON()
 	}
 
-	return valid, message
+	return valid, body
 }
 
-func validateEmailFormat(email string) (valid bool, message string) {
+func validateEmailFormat(email string) (valid bool, body string) {
 	valid = validation.ValidEmail.MatchString(email)
 
 	if !valid {
-		message = errors.Make(
+		body = errors.Make(
 			errors.EmailFormat,
 			"Email address format is invalid",
 		).ToJSON()
 	}
 
-	return valid, message
+	return valid, body
+}
+
+func packageCreateAccountError(err error) (body string) {
+	if strings.Contains(err.Error(), "Error 1062") {
+		if strings.Contains(err.Error(), "email_UNIQUE") {
+			body = errors.Make(
+				errors.DatabaseError,
+				"Email address already in use",
+			).ToJSON()
+		} else if strings.Contains(err.Error(), "handle_UNIQUE") {
+			body = errors.Make(
+				errors.DatabaseError,
+				"Handle already in use",
+			).ToJSON()
+		}
+	} else {
+		body = errors.Make(
+			errors.DatabaseError,
+			fmt.Sprintf("Unknown database error: %v", err.Error()),
+		).ToJSON()
+	}
+
+	return body
+}
+
+func packageEmailError(err error) (body string) {
+
+	return body
 }
