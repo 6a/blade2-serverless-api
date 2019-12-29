@@ -1,28 +1,33 @@
-// Adapted from https://blog.questionable.services/article/generating-secure-random-numbers-crypto-rand/
+// Adapted from https://gist.github.com/denisbrodbeck/635a644089868a51eccd6ae22b2eb800
 
 package rid
 
 import (
 	"crypto/rand"
-	"encoding/base64"
+	"math/big"
 )
 
-// RandomBytes returns an array of random bytes of n length, generated securely using crypto/rand
-func RandomBytes(n int) ([]byte, error) {
-	buffer := make([]byte, n)
+// RandomString returns a string of random characters of n length
+func RandomString(n int) (r string, err error) {
+	r = ""
+	for {
+		if len(r) >= n {
+			return r, nil
+		}
 
-	// Put values into the buffer, and return any errors
-	_, err := rand.Read(buffer)
-	if err != nil {
-		return nil, err
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(127)))
+		if err != nil {
+			return "", err
+		}
+
+		n := num.Int64()
+		if isValidChar(n) {
+			r += string(n)
+		}
 	}
-
-	// Return the successfully filled buffer
-	return buffer, nil
 }
 
-// RandomString returns a base64 string of random characters of n length
-func RandomString(n int) (string, error) {
-	b, err := RandomBytes(n)
-	return base64.URLEncoding.EncodeToString(b), err
+func isValidChar(c int64) bool {
+	// ASCII numbers, and upper/lower case characters
+	return (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122)
 }
