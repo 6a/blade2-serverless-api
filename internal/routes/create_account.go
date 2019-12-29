@@ -9,7 +9,6 @@ import (
 	"github.com/6a/blade-ii-api/internal/database"
 	"github.com/6a/blade-ii-api/internal/errors"
 	"github.com/6a/blade-ii-api/internal/types"
-	"github.com/6a/blade-ii-api/internal/utility"
 	"github.com/6a/blade-ii-api/internal/validation"
 	"github.com/aws/aws-lambda-go/events"
 )
@@ -21,12 +20,10 @@ func CreateAccount(ctx context.Context, request events.APIGatewayProxyRequest) (
 	err = json.Unmarshal([]byte(request.Body), &ucr)
 	if err != nil {
 		r.StatusCode = 400
-		r.Message = utility.MakeMessageBody(
-			errors.Make(
-				errors.RequestMarshalError,
-				"Could not unmarshal message body",
-			),
-		)
+		r.Message = errors.Make(
+			errors.RequestMarshalError,
+			"Could not unmarshal message body",
+		).ToJSON()
 
 		return r, nil
 	}
@@ -100,12 +97,10 @@ func validateFields(target types.UserCreationRequest) (ok bool, message string) 
 	}
 
 	if len(field) != 0 {
-		message = utility.MakeMessageBody(
-			errors.Make(
-				err,
-				fmt.Sprintf("Field (%v of type %v) not found, or could not be parsed due to incorrect typing", field, expectedType),
-			),
-		)
+		message = errors.Make(
+			err,
+			fmt.Sprintf("Field (%v of type %v) not found, or could not be parsed due to incorrect typing", field, expectedType),
+		).ToJSON()
 	}
 
 	return ok, message
@@ -117,12 +112,10 @@ func validateHandleLength(handle string) (valid bool, message string) {
 	valid = handleLength >= min && handleLength <= max
 
 	if !valid {
-		message = utility.MakeMessageBody(
-			errors.Make(
-				errors.HandleLength,
-				fmt.Sprintf("handle must be between %v and %v characters", min, max),
-			),
-		)
+		message = errors.Make(
+			errors.HandleLength,
+			fmt.Sprintf("handle must be between %v and %v characters", min, max),
+		).ToJSON()
 	}
 
 	return valid, message
@@ -132,12 +125,10 @@ func validatePasswordFormat(password string) (valid bool, message string) {
 	valid = validation.ValidPasswordChars.MatchString(password)
 
 	if !valid {
-		message = utility.MakeMessageBody(
-			errors.Make(
-				errors.PasswordFormat,
-				"Passwords can only contain printable ASCII characters",
-			),
-		)
+		message = errors.Make(
+			errors.PasswordFormat,
+			"Passwords can only contain printable ASCII characters",
+		).ToJSON()
 	} else {
 		passwordLength := len([]rune(password))
 
@@ -147,12 +138,10 @@ func validatePasswordFormat(password string) (valid bool, message string) {
 			containsAtLeastOneLowerCaseChar := validation.LowerCaseAtAnyPosition.MatchString(password)
 
 			if !meetsMinLengthRequirement || !containsAtLeastOneNumber || !containsAtLeastOneLowerCaseChar {
-				message = utility.MakeMessageBody(
-					errors.Make(
-						errors.PasswordComplexityInsufficient,
-						"Passwords does not meet minimum complexity requirements",
-					),
-				)
+				message = errors.Make(
+					errors.PasswordComplexityInsufficient,
+					"Passwords does not meet minimum complexity requirements",
+				).ToJSON()
 			}
 		}
 	}
@@ -164,12 +153,10 @@ func validateHandleFormat(handle string) (valid bool, message string) {
 	valid = validation.NoSpaceAtStart.MatchString(handle) && validation.ValidUsernameRegex.MatchString(handle)
 
 	if !valid {
-		message = utility.MakeMessageBody(
-			errors.Make(
-				errors.HandleFormat,
-				"Handles can only contain full-width japanese characters, half-width alphanumerical characters and certain symbols",
-			),
-		)
+		message = errors.Make(
+			errors.HandleFormat,
+			"Handles can only contain full-width japanese characters, half-width alphanumerical characters and certain symbols",
+		).ToJSON()
 	}
 
 	return valid, message
@@ -179,12 +166,10 @@ func validateEmailFormat(email string) (valid bool, message string) {
 	valid = validation.ValidEmail.MatchString(email)
 
 	if !valid {
-		message = utility.MakeMessageBody(
-			errors.Make(
-				errors.EmailFormat,
-				"Email address format is invalid",
-			),
-		)
+		message = errors.Make(
+			errors.EmailFormat,
+			"Email address format is invalid",
+		).ToJSON()
 	}
 
 	return valid, message
