@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/6a/blade-ii-api/database"
-	"github.com/6a/blade-ii-api/errors"
-	"github.com/6a/blade-ii-api/types"
-	"github.com/6a/blade-ii-api/utility"
-	"github.com/6a/blade-ii-api/validation"
+	"github.com/6a/blade-ii-api/internal/database"
+	"github.com/6a/blade-ii-api/internal/errors"
+	"github.com/6a/blade-ii-api/internal/types"
+	"github.com/6a/blade-ii-api/internal/utility"
+	"github.com/6a/blade-ii-api/internal/validation"
 	"github.com/aws/aws-lambda-go/events"
 )
 
