@@ -15,8 +15,8 @@ else
     $env:CGO_ENABLED = "0"
 
     # Vars
-    $binary = "$function.bin"
-    $zip = "$function.zip"
+    $binary = "./build/$function"
+    $zip = "./build/$function.zip"
     $entrypoint = "./internal/endpoints/$function.go"
 
     # Build go binary
