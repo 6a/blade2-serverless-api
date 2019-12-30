@@ -15,7 +15,7 @@ else
     $env:CGO_ENABLED = "0"
 
     # Vars
-    $binary = "./build/$function"
+    $binary = "./build/main"
     $zip = "./build/$function.zip"
     $entrypoint = "./internal/endpoints/$function.go"
 
@@ -32,6 +32,14 @@ else
 
     if ($? -ne $true) {
         Write-Host "[ERROR] Error while building AWS lambda package $zip'`n" -ForegroundColor Red;
+        exit
+    }
+
+    # delete binary
+    Remove-Item $binary
+
+    if ($? -ne $true) {
+        Write-Host "[ERROR] Build succeeded, but failed to delete the binary @ $binary'`n" -ForegroundColor Red;
         exit
     }
 
