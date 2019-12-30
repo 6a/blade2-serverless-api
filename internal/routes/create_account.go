@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/6a/blade-ii-api/internal/b2error"
 	"github.com/6a/blade-ii-api/internal/database"
 	"github.com/6a/blade-ii-api/internal/email"
-	"github.com/6a/blade-ii-api/internal/errors"
 	"github.com/6a/blade-ii-api/internal/types"
 	"github.com/6a/blade-ii-api/internal/validation"
 	"github.com/aws/aws-lambda-go/events"
@@ -21,8 +21,8 @@ func CreateAccount(ctx context.Context, request events.APIGatewayProxyRequest) (
 	err = json.Unmarshal([]byte(request.Body), &ucr)
 	if err != nil {
 		r.StatusCode = 400
-		r.Body = errors.Make(
-			errors.RequestMarshalError,
+		r.Body = b2error.Make(
+			b2error.RequestMarshalError,
 			"Could not unmarshal message body",
 		).ToJSON()
 
@@ -71,7 +71,7 @@ func CreateAccount(ctx context.Context, request events.APIGatewayProxyRequest) (
 
 	emailConfirmationToken, err := database.CreateUser(*ucr.Handle, *ucr.Email, *ucr.Password)
 	if err != nil {
-		r.StatusCode = 500
+		r.StatusCode = 400
 		r.Body = packageCreateAccountError(err)
 
 		return r, nil
@@ -86,7 +86,7 @@ func CreateAccount(ctx context.Context, request events.APIGatewayProxyRequest) (
 	}
 
 	r.StatusCode = 200
-	r.Body = errors.Make(errors.None, fmt.Sprintf("Account created [ %v | %v ]", *ucr.Handle, *ucr.Email)).ToJSON()
+	r.Body = b2error.Make(b2error.None, *ucr.Handle).ToJSON()
 
 	return r, nil
 }
@@ -98,22 +98,22 @@ func validateFields(target types.UserCreationRequest) (ok bool, body string) {
 
 	if target.Handle == nil {
 		field = "handle"
-		err = errors.HandleMissingOrWrongType
+		err = b2error.HandleMissingOrWrongType
 		expectedType = "string"
 	} else if target.Email == nil {
 		field = "email"
-		err = errors.EmailMissingOrWrongType
+		err = b2error.EmailMissingOrWrongType
 		expectedType = "string"
 	} else if target.Password == nil {
 		field = "password"
-		err = errors.PasswordMissingOrWrongType
+		err = b2error.PasswordMissingOrWrongType
 		expectedType = "string"
 	} else {
 		ok = true
 	}
 
 	if len(field) != 0 {
-		body = errors.Make(
+		body = b2error.Make(
 			err,
 			fmt.Sprintf("Field (%v of type %v) not found, or could not be parsed due to incorrect typing", field, expectedType),
 		).ToJSON()
@@ -128,8 +128,8 @@ func validateHandleLength(handle string) (valid bool, body string) {
 	valid = handleLength >= min && handleLength <= max
 
 	if !valid {
-		body = errors.Make(
-			errors.HandleLength,
+		body = b2error.Make(
+			b2error.HandleLength,
 			fmt.Sprintf("handle must be between %v and %v characters", min, max),
 		).ToJSON()
 	}
@@ -141,23 +141,23 @@ func validatePasswordFormat(password string) (valid bool, body string) {
 	valid = validation.ValidPasswordChars.MatchString(password)
 
 	if !valid {
-		body = errors.Make(
-			errors.PasswordFormat,
+		body = b2error.Make(
+			b2error.PasswordFormat,
 			"Passwords can only contain printable ASCII characters",
 		).ToJSON()
 	} else {
 		passwordLength := len([]rune(password))
 
-		if passwordLength <= validation.PasswordMinLengthLong {
-			meetsMinLengthRequirement := passwordLength <= validation.PasswordMinLengthLong
+		if passwordLength < validation.PasswordMinLengthLong {
+			meetsMinLengthRequirement := passwordLength < validation.PasswordMinLengthLong
 			containsAtLeastOneNumber := validation.NumberAtAnyPosition.MatchString(password)
 			containsAtLeastOneLowerCaseChar := validation.LowerCaseAtAnyPosition.MatchString(password)
 
 			if !meetsMinLengthRequirement || !containsAtLeastOneNumber || !containsAtLeastOneLowerCaseChar {
 				valid = false
-				body = errors.Make(
-					errors.PasswordComplexityInsufficient,
-					"Passwords does not meet minimum complexity requirements",
+				body = b2error.Make(
+					b2error.PasswordComplexityInsufficient,
+					"Password does not meet minimum complexity requirements",
 				).ToJSON()
 			}
 		}
@@ -167,11 +167,19 @@ func validatePasswordFormat(password string) (valid bool, body string) {
 }
 
 func validateHandleFormat(handle string) (valid bool, body string) {
-	valid = validation.NoSpaceAtStart.MatchString(handle) && validation.ValidUsernameRegex.MatchString(handle)
-
+	valid = validation.NoSpaceAtStart.MatchString(handle)
 	if !valid {
-		body = errors.Make(
-			errors.HandleFormat,
+		body = b2error.Make(
+			b2error.HandleSpaceAtStart,
+			"Handles cannot start with a space",
+		).ToJSON()
+		return valid, body
+	}
+
+	valid = validation.ValidUsernameRegex.MatchString(handle)
+	if !valid {
+		body = b2error.Make(
+			b2error.HandleFormat,
 			"Handles can only contain full-width japanese characters, half-width alphanumerical characters and certain symbols",
 		).ToJSON()
 	}
@@ -183,8 +191,8 @@ func validateEmailFormat(email string) (valid bool, body string) {
 	valid = validation.ValidEmail.MatchString(email)
 
 	if !valid {
-		body = errors.Make(
-			errors.EmailFormat,
+		body = b2error.Make(
+			b2error.EmailFormat,
 			"Email address format is invalid",
 		).ToJSON()
 	}
@@ -195,19 +203,19 @@ func validateEmailFormat(email string) (valid bool, body string) {
 func packageCreateAccountError(err error) (body string) {
 	if strings.Contains(err.Error(), "Error 1062") {
 		if strings.Contains(err.Error(), "email_UNIQUE") {
-			body = errors.Make(
-				errors.DatabaseError,
+			body = b2error.Make(
+				b2error.DatabaseError,
 				"Email address already in use",
 			).ToJSON()
 		} else if strings.Contains(err.Error(), "handle_UNIQUE") {
-			body = errors.Make(
-				errors.DatabaseError,
+			body = b2error.Make(
+				b2error.DatabaseError,
 				"Handle already in use",
 			).ToJSON()
 		}
 	} else {
-		body = errors.Make(
-			errors.DatabaseError,
+		body = b2error.Make(
+			b2error.DatabaseError,
 			fmt.Sprintf("Unknown database error: %v", err.Error()),
 		).ToJSON()
 	}
