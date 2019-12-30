@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	b2error "errors"
 	"fmt"
 	"log"
 	"os"
@@ -58,6 +59,15 @@ func Init() {
 
 // CreateUser creates a user account
 func CreateUser(handle string, email string, password string) (emailValidationToken string, err error) {
+	exists, err := UserExists(handle)
+	if err != nil {
+		return "", err
+	}
+
+	if exists {
+		return "", b2error.New(fmt.Sprintf("Error 1062: Duplicate entry '%v' for key 'handle_UNIQUE'", handle))
+	}
+
 	transaction, err := db.Begin()
 
 	if err != nil {
