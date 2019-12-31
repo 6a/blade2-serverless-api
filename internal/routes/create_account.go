@@ -204,12 +204,12 @@ func packageCreateAccountError(err error) (body string) {
 	if strings.Contains(err.Error(), "Error 1062") {
 		if strings.Contains(err.Error(), "email_UNIQUE") {
 			body = b2error.Make(
-				b2error.DatabaseError,
+				b2error.EmailAlreadyInUse,
 				"Email address already in use",
 			).ToJSON()
 		} else if strings.Contains(err.Error(), "handle_UNIQUE") {
 			body = b2error.Make(
-				b2error.DatabaseError,
+				b2error.HandleAlreadyInUse,
 				"Handle already in use",
 			).ToJSON()
 		}
@@ -224,6 +224,5 @@ func packageCreateAccountError(err error) (body string) {
 }
 
 func packageEmailError(err error) (body string) {
-
 	return body
 }

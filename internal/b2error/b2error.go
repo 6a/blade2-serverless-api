@@ -24,6 +24,7 @@ const None Code = iota
 const (
 	RequestMarshalError Code = iota + 100
 	DatabaseError
+	CryptoRandomError
 )
 
 // Create account handle errors
@@ -48,6 +49,14 @@ const (
 	PasswordMissingOrWrongType Code = iota + 400
 	PasswordComplexityInsufficient
 	PasswordFormat
+)
+
+// Auth
+const (
+	AuthHeaderMissing Code = iota + 500
+	AuthHeaderFormat
+	AuthInsufficientPermissions
+	AuthUsernameOrPasswordIncorrect
 )
 
 // Make returns a new B2Error object based on the provided argument

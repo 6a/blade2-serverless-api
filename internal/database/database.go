@@ -2,10 +2,11 @@ package database
 
 import (
 	"database/sql"
-	b2error "errors"
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/6a/blade-ii-api/internal/settings"
 	"github.com/6a/blade-ii-api/pkg/rid"
@@ -16,6 +17,8 @@ import (
 )
 
 var db *sql.DB
+
+const passwordCheckConstantTimeMin = time.Millisecond * 1500
 
 var argonParams = argon2id.Params{
 	Memory:      32 * 1024,
@@ -38,9 +41,9 @@ var dbtableTokens = os.Getenv("db_table_tokens")
 var psCreateAccount = fmt.Sprintf("INSERT INTO `%v`.`%v` (`public_id`, `handle`, `email`, `salted_hash`) VALUES (?, ?, ?, ?);", dbname, dbtableUsers)
 var psAddEmailConfirmationToken = fmt.Sprintf("INSERT INTO `%v`.`%v` (`id`, `email_confirmation`, `email_expiry`) VALUES (LAST_INSERT_ID(), ?, DATE_ADD(NOW(), INTERVAL ? HOUR));", dbname, dbtableTokens)
 
-var psCheckName = fmt.Sprintf(`SELECT EXISTS(SELECT * FROM %v.%v WHERE handle = ?);`, dbname, dbtableUsers)
+var psCheckName = fmt.Sprintf("SELECT EXISTS(SELECT * FROM `%v`.`%v` WHERE `handle` = ?);", dbname, dbtableUsers)
+var psCheckAuth = fmt.Sprintf("SELECT `salted_hash`, `banned` FROM `%v`.`%v` WHERE `handle` = ?;", dbname, dbtableUsers)
 
-// var psCheckAuth = fmt.Sprintf("SELECT `saltedpasswordhash`, `banned` FROM `%v`.`%v` WHERE `name` = ?;", dbname, dbtable)
 // var psGetTopN = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `name`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` ORDER BY `rank` = 0, `rank`, `winratio` DESC LIMIT ?;", dbname, dbtable)
 // var psGetUser = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` WHERE `name` = ?;", dbname, dbtable)
 // var psUpdateUser = fmt.Sprintf("UPDATE `%v`.`%v` SET `wins` = (`wins` + ?), `draws` = (`draws` + ?), `losses` = (`losses` + ?) WHERE `name` = ?;", dbname, dbtable)
@@ -59,13 +62,13 @@ func Init() {
 
 // CreateUser creates a user account
 func CreateUser(handle string, email string, password string) (emailValidationToken string, err error) {
-	exists, err := UserExists(handle)
+	exists, err := userExists(handle)
 	if err != nil {
 		return "", err
 	}
 
 	if exists {
-		return "", b2error.New(fmt.Sprintf("Error 1062: Duplicate entry '%v' for key 'handle_UNIQUE'", handle))
+		return "", fmt.Errorf("Error 1062: Duplicate entry '%v' for key 'handle_UNIQUE'", handle)
 	}
 
 	transaction, err := db.Begin()
@@ -119,6 +122,71 @@ func CreateUser(handle string, email string, password string) (emailValidationTo
 	return emailConfirmationToken, err
 }
 
+// ValidateCredentials checks if the provided handle exists, and if the hashed password matches the stored hashed password
+func ValidateCredentials(handle string, password string) (err error) {
+	startTime := time.Now()
+	defer makeConstantTime(startTime, passwordCheckConstantTimeMin)
+
+	exists, err := userExists(handle)
+	if err != nil {
+		return err
+	}
+
+	if !exists {
+		return fmt.Errorf("The handle %v does not does not match any existing users", handle)
+	}
+
+	statement, err := db.Prepare(psCheckAuth)
+	if err != nil {
+		return err
+	}
+
+	defer statement.Close()
+
+	var banned bool
+	var saltedHash string
+	err = statement.QueryRow(handle).Scan(&saltedHash, &banned)
+	if err != nil {
+		return err
+	}
+
+	if banned {
+		return errors.New("Specified user is banned")
+	}
+
+	match, err := argon2id.ComparePasswordAndHash(password, saltedHash)
+	if err != nil {
+		return err
+	}
+
+	if !match {
+		return errors.New("The provided password does not match the stored password for this user")
+	}
+
+	return nil
+}
+
+func userExists(username string) (exists bool, err error) {
+	statement, err := db.Prepare(psCheckName)
+	if err != nil {
+		return false, err
+	}
+
+	defer statement.Close()
+
+	err = statement.QueryRow(username).Scan(&exists)
+
+	if err != nil && err != sql.ErrNoRows {
+		return false, err
+	}
+
+	return exists, nil
+}
+
+func makeConstantTime(startTime time.Time, desiredTime time.Duration) {
+	time.Sleep(desiredTime - time.Since(startTime))
+}
+
 // ProcessAuth processed a request to see if the authentication is valid
 // func ProcessAuth(headers map[string]string) (status int, msg string, username string) {
 // 	if authHeader, ok := headers["Authorization"]; ok {
@@ -159,24 +227,6 @@ func CreateUser(handle string, email string, password string) (emailValidationTo
 
 // 	return status, msg, username
 // }
-
-// UserExists returns true if the user exists
-func UserExists(username string) (exists bool, err error) {
-	statement, err := db.Prepare(psCheckName)
-	if err != nil {
-		return false, err
-	}
-
-	defer statement.Close()
-
-	err = statement.QueryRow(username).Scan(&exists)
-
-	if err != nil && err != sql.ErrNoRows {
-		return false, err
-	}
-
-	return exists, nil
-}
 
 // // GetLeaderboard returns the leaderboard info, asligned with the specified user and capped to n results
 // func GetLeaderboard(username string, maxResults int) (leaderboard types.Leaderboard, err error) {
