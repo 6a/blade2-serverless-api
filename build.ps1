@@ -17,7 +17,7 @@ else
     # Vars
     $binary = "./build/main"
     $zip = "./build/$function.zip"
-    $entrypoint = "./internal/endpoints/$function.go"
+    $entrypoint = "./internal/endpoints/$function/$function.go"
 
     # Build go binary
     go build -o $binary $entrypoint; 
