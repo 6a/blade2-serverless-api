@@ -1,20 +1,5 @@
 package types
 
-import "encoding/json"
-
-// UserCreationRequest describes the data needed to create a new user
-type UserCreationRequest struct {
-	Handle   *string `json:"handle"`
-	Email    *string `json:"email"`
-	Password *string `json:"password"`
-}
-
-// Response is the standard response struct
-type Response struct {
-	StatusCode int    `json:"statusCode"`
-	Body       string `json:"body"`
-}
-
 // Token typedef
 type Token byte
 
@@ -39,19 +24,6 @@ func (token Token) String() string {
 	}
 
 	return types[token]
-}
-
-// GetAuthTokenResponse is a container for responses to successful get auth requests
-type GetAuthTokenResponse struct {
-	PublicID     string `json:"pid"`
-	AuthToken    string `json:"authToken"`
-	RefreshToken string `json:"refreshToken"`
-}
-
-// ToJSON returns the reponse as a json format string
-func (r GetAuthTokenResponse) ToJSON() (s string) {
-	bytes, _ := json.Marshal(r)
-	return string(bytes)
 }
 
 // UserUpdateRequest is a set of deltas used to update the w/d/l for the specified player

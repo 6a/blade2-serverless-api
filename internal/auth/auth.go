@@ -28,13 +28,13 @@ func ExtractCredentials(headers map[string]string) (handle string, password stri
 	return "", "", errors.New("Authorization header not found")
 }
 
-// ValidatePathAndHandle checks if the path parameter matches the expected handle
-func ValidatePathAndHandle(authHandle string, pathHandle string) (err error) {
-	matches := authHandle == pathHandle
+// // ValidatePathAndHandle checks if the path parameter matches the expected handle
+// func ValidatePathAndHandle(authHandle string, pathHandle string) (err error) {
+// 	matches := authHandle == pathHandle
 
-	if !matches {
-		err = errors.New("The handle specified in the Authorization header does not match the handle specified in the path")
-	}
+// 	if !matches {
+// 		err = errors.New("The handle specified in the Authorization header does not match the handle specified in the path")
+// 	}
 
-	return err
-}
+// 	return err
+// }

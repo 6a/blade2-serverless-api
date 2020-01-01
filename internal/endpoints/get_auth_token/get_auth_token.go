@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 )
 
-func functionWrapper(ctx context.Context, request events.APIGatewayProxyRequest) (r types.Response, err error) {
+func functionWrapper(ctx context.Context, request events.APIGatewayProxyRequest) (r types.LambdaResponse, err error) {
 	return routes.GetAuthToken(ctx, request)
 }
 
