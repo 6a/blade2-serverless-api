@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/6a/blade-ii-api/internal/settings"
+	"github.com/6a/blade-ii-api/internal/types"
 	"github.com/6a/blade-ii-api/pkg/rid"
 
 	"github.com/alexedwards/argon2id"
@@ -39,10 +41,12 @@ var dbtableMatches = os.Getenv("db_table_matches")
 var dbtableTokens = os.Getenv("db_table_tokens")
 
 var psCreateAccount = fmt.Sprintf("INSERT INTO `%v`.`%v` (`public_id`, `handle`, `email`, `salted_hash`) VALUES (?, ?, ?, ?);", dbname, dbtableUsers)
-var psAddEmailConfirmationToken = fmt.Sprintf("INSERT INTO `%v`.`%v` (`id`, `email_confirmation`, `email_expiry`) VALUES (LAST_INSERT_ID(), ?, DATE_ADD(NOW(), INTERVAL ? HOUR));", dbname, dbtableTokens)
+var psCreateTokenRowWithEmailToken = fmt.Sprintf("INSERT INTO `%v`.`%v` (`id`, `email_confirmation`, `email_confirmation_expiry`) VALUES (LAST_INSERT_ID(), ?, DATE_ADD(NOW(), INTERVAL ? HOUR));", dbname, dbtableTokens)
+var psAddTokenWithReplacers = fmt.Sprintf("UPDATE `%v`.`%v` SET `repl_1` = ?, `repl_2` = DATE_ADD(NOW(), INTERVAL ? HOUR) WHERE `id` = ?;", dbname, dbtableTokens)
 
 var psCheckName = fmt.Sprintf("SELECT EXISTS(SELECT * FROM `%v`.`%v` WHERE `handle` = ?);", dbname, dbtableUsers)
 var psCheckAuth = fmt.Sprintf("SELECT `salted_hash`, `banned` FROM `%v`.`%v` WHERE `handle` = ?;", dbname, dbtableUsers)
+var psGetIDs = fmt.Sprintf("SELECT `id`, `public_id` FROM `%v`.`%v` WHERE `handle` = ?;", dbname, dbtableUsers)
 
 // var psGetTopN = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `name`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` ORDER BY `rank` = 0, `rank`, `winratio` DESC LIMIT ?;", dbname, dbtable)
 // var psGetUser = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` WHERE `name` = ?;", dbname, dbtable)
@@ -105,7 +109,7 @@ func CreateUser(handle string, email string, password string) (emailValidationTo
 		return "", err
 	}
 
-	statement, err = db.Prepare(psAddEmailConfirmationToken)
+	statement, err = db.Prepare(psCreateTokenRowWithEmailToken)
 	if err != nil {
 		transaction.Rollback()
 		return "", err
@@ -166,6 +170,45 @@ func ValidateCredentials(handle string, password string) (err error) {
 	return nil
 }
 
+// GetIDs returns the database and public ID for the specified user
+func GetIDs(handle string) (id int, publicID string, err error) {
+	statement, err := db.Prepare(psGetIDs)
+	if err != nil {
+		return -1, "", err
+	}
+
+	defer statement.Close()
+
+	err = statement.QueryRow(handle).Scan(&id, &publicID)
+	if err != nil {
+		return -1, "", err
+	}
+
+	return id, publicID, nil
+}
+
+// SetToken updates the tokens table with the specified token for the specified user
+func SetToken(id int, t types.Token, token string, hoursValid int) (err error) {
+	statement, err := db.Prepare(createAddTokenPS(t))
+	if err != nil {
+		return err
+	}
+
+	_, err = statement.Exec(token, hoursValid, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func createAddTokenPS(t types.Token) (ps string) {
+	ps = strings.Replace(psAddTokenWithReplacers, "repl_1", t.String(), -1)
+	ps = strings.Replace(ps, "repl_2", fmt.Sprintf("%v_expiry", t.String()), -1)
+
+	return ps
+}
+
 func userExists(username string) (exists bool, err error) {
 	statement, err := db.Prepare(psCheckName)
 	if err != nil {
@@ -186,47 +229,6 @@ func userExists(username string) (exists bool, err error) {
 func makeConstantTime(startTime time.Time, desiredTime time.Duration) {
 	time.Sleep(desiredTime - time.Since(startTime))
 }
-
-// ProcessAuth processed a request to see if the authentication is valid
-// func ProcessAuth(headers map[string]string) (status int, msg string, username string) {
-// 	if authHeader, ok := headers["Authorization"]; ok {
-// 		decodedHeader, err := base64.StdEncoding.DecodeString(strings.Replace(authHeader, "Basic ", "", 1))
-// 		if err != nil {
-// 			status = 401
-// 			msg = "Auth header invalid format"
-// 		} else {
-// 			var credentials = strings.Split(string(decodedHeader), ":")
-// 			if len(credentials) != 2 {
-// 				status = 401
-// 				msg = "Auth header invalid format"
-// 			} else {
-// 				valid, err := validateCredentials(credentials[0], credentials[1])
-// 				username = credentials[0]
-// 				if err != nil {
-// 					if err == sql.ErrNoRows {
-// 						status = 403
-// 						msg = "Username or password incorrect"
-// 					} else {
-// 						status = 400
-// 						msg = err.Error()
-// 					}
-// 				} else {
-// 					if valid {
-// 						status = 204
-// 					} else {
-// 						status = 403
-// 						msg = "Username or password incorrect"
-// 					}
-// 				}
-// 			}
-// 		}
-// 	} else {
-// 		status = 401
-// 		msg = "Missing 'Authorization' header"
-// 	}
-
-// 	return status, msg, username
-// }
 
 // // GetLeaderboard returns the leaderboard info, asligned with the specified user and capped to n results
 // func GetLeaderboard(username string, maxResults int) (leaderboard types.Leaderboard, err error) {

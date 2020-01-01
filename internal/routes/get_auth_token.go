@@ -6,6 +6,7 @@ import (
 	"github.com/6a/blade-ii-api/internal/auth"
 	"github.com/6a/blade-ii-api/internal/b2error"
 	"github.com/6a/blade-ii-api/internal/database"
+	"github.com/6a/blade-ii-api/internal/settings"
 	"github.com/6a/blade-ii-api/internal/types"
 	"github.com/6a/blade-ii-api/pkg/rid"
 	"github.com/aws/aws-lambda-go/events"
@@ -32,7 +33,6 @@ func GetAuthToken(ctx context.Context, request events.APIGatewayProxyRequest) (r
 	}
 
 	err = database.ValidateCredentials(handle, password)
-
 	if err != nil {
 		r.StatusCode = 403
 		r.Body = packageCredentialsValidationError(err)
@@ -40,7 +40,15 @@ func GetAuthToken(ctx context.Context, request events.APIGatewayProxyRequest) (r
 		return r, nil
 	}
 
-	token, err := rid.RandomString(32)
+	id, publicID, err := database.GetIDs(handle)
+	if err != nil {
+		r.StatusCode = 500
+		r.Body = packageGetIDError(err)
+
+		return r, nil
+	}
+
+	authToken, err := rid.RandomString(settings.AuthTokenLength)
 	if err != nil {
 		r.StatusCode = 500
 		r.Body = packageTokenGenerationError(err)
@@ -48,8 +56,36 @@ func GetAuthToken(ctx context.Context, request events.APIGatewayProxyRequest) (r
 		return r, nil
 	}
 
+	err = database.SetToken(id, types.AuthToken, authToken, settings.AuthTokenLifetime)
+	if err != nil {
+		r.StatusCode = 500
+		r.Body = packageSetTokenError(err)
+
+		return r, nil
+	}
+
+	refreshToken, err := rid.RandomString(settings.RefreshTokenLength)
+	if err != nil {
+		r.StatusCode = 500
+		r.Body = packageTokenGenerationError(err)
+
+		return r, nil
+	}
+
+	err = database.SetToken(id, types.RefreshToken, refreshToken, settings.RefreshTokenLifetime)
+	if err != nil {
+		r.StatusCode = 500
+		r.Body = packageSetTokenError(err)
+
+		return r, nil
+	}
+
 	r.StatusCode = 200
-	r.Body = token
+	r.Body = types.GetAuthTokenResponse{
+		PublicID:     publicID,
+		AuthToken:    authToken,
+		RefreshToken: refreshToken,
+	}.ToJSON()
 
 	return r, nil
 }
@@ -84,6 +120,24 @@ func packageCredentialsValidationError(err error) (body string) {
 func packageTokenGenerationError(err error) (body string) {
 	body = b2error.Make(
 		b2error.CryptoRandomError,
+		err.Error(),
+	).ToJSON()
+
+	return body
+}
+
+func packageGetIDError(err error) (body string) {
+	body = b2error.Make(
+		b2error.DatabaseError,
+		err.Error(),
+	).ToJSON()
+
+	return body
+}
+
+func packageSetTokenError(err error) (body string) {
+	body = b2error.Make(
+		b2error.DatabaseError,
 		err.Error(),
 	).ToJSON()
 
