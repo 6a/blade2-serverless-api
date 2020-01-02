@@ -3,10 +3,12 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"github.com/6a/blade-ii-api/internal/database"
 	"github.com/6a/blade-ii-api/internal/email"
 	"github.com/6a/blade-ii-api/internal/types"
+	"github.com/6a/blade-ii-api/pkg/profanity"
 	"github.com/aws/aws-lambda-go/events"
 )
 
@@ -47,6 +49,12 @@ func CreateAccount(ctx context.Context, request events.APIGatewayProxyRequest) (
 	passwordLengthValid, code, payload := validatePasswordFormat(*ucr.Password)
 	if !passwordLengthValid {
 		r = types.MakeLambdaResponse(400, code, payload)
+		return r, nil
+	}
+
+	rude := profanity.ContainsProfanity(*ucr.Handle)
+	if rude {
+		r = packageGenericError(400, types.HandleRude, errors.New("Handle contains profanity"))
 		return r, nil
 	}
 
