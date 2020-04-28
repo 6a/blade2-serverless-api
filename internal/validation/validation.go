@@ -13,7 +13,7 @@ const (
 // Regex patterns
 var (
 	NoSpaceAtStart         = regexp.MustCompile("^[^\\s]+")
-	ValidUsernameRegex     = regexp.MustCompile("^[ー一-龯ぁ-ゞァ-ヶ -~Ａ-ｚ０-９！-／：-＠［-｀｛-～、-〜“”‘’´・ 　]+$")
+	ValidUsernameRegex     = regexp.MustCompile("^[ー一-龯ぁ-ゞァ-ヶ --/-9Ａ-ｚ０-９！-／;-~：-＠［-｀｛-～、-〜“”‘’´・　]+$")
 	ValidEmail             = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 	ValidPasswordChars     = regexp.MustCompile("^[ -~]+$")
 	NumberAtAnyPosition    = regexp.MustCompile("[0-9]")
