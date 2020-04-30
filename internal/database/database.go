@@ -11,6 +11,7 @@ import (
 
 	"github.com/6a/blade-ii-api/internal/settings"
 	"github.com/6a/blade-ii-api/internal/types"
+	"github.com/6a/blade-ii-api/pkg/elo"
 	"github.com/6a/blade-ii-api/pkg/rid"
 
 	"github.com/alexedwards/argon2id"
@@ -40,6 +41,13 @@ var dbtableProfiles = os.Getenv("db_table_profiles")
 var dbtableMatches = os.Getenv("db_table_matches")
 var dbtableTokens = os.Getenv("db_table_tokens")
 
+// Privilege levels
+const (
+	UserPrivilege        uint8 = 0
+	GameAdminPrivilege   uint8 = 1
+	ServerAdminPrivilege uint8 = 2
+)
+
 var psCreateAccount = fmt.Sprintf("INSERT INTO `%v`.`%v` (`public_id`, `handle`, `email`, `salted_hash`) VALUES (?, ?, ?, ?);", dbname, dbtableUsers)
 var psCreateTokenRowWithEmailToken = fmt.Sprintf("INSERT INTO `%v`.`%v` (`id`, `email_confirmation`, `email_confirmation_expiry`) VALUES (LAST_INSERT_ID(), ?, DATE_ADD(NOW(), INTERVAL ? HOUR));", dbname, dbtableTokens)
 var psAddTokenWithReplacers = fmt.Sprintf("UPDATE `%v`.`%v` SET `repl_1` = ?, `repl_2` = DATE_ADD(NOW(), INTERVAL ? HOUR) WHERE `id` = ?;", dbname, dbtableTokens)
@@ -47,6 +55,10 @@ var psAddTokenWithReplacers = fmt.Sprintf("UPDATE `%v`.`%v` SET `repl_1` = ?, `r
 var psCheckName = fmt.Sprintf("SELECT EXISTS(SELECT * FROM `%v`.`%v` WHERE `handle` = ?);", dbname, dbtableUsers)
 var psCheckAuth = fmt.Sprintf("SELECT `salted_hash`, `banned` FROM `%v`.`%v` WHERE `handle` = ?;", dbname, dbtableUsers)
 var psGetIDs = fmt.Sprintf("SELECT `id`, `public_id` FROM `%v`.`%v` WHERE `handle` = ?;", dbname, dbtableUsers)
+var psGetPrivilege = fmt.Sprintf("SELECT `privilege` FROM `%v`.`%v` WHERE `handle` = ?;", dbname, dbtableUsers)
+
+var psGetMatchStats = fmt.Sprintf("SELECT `mmr`, `wins`, `draws`, `losses` FROM `%v`.`%v` WHERE `id` = ?;", dbname, dbtableProfiles)
+var psUpdateMMR = fmt.Sprintf("UPDATE `%v`.`%v` SET `mmr` = ?, `wins` = ?, `draws` = ?, `losses` = ? WHERE `id` = ?;", dbname, dbtableProfiles)
 
 // var psGetTopN = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `name`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` ORDER BY `rank` = 0, `rank`, `winratio` DESC LIMIT ?;", dbname, dbtable)
 // var psGetUser = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` WHERE `name` = ?;", dbname, dbtable)
@@ -194,12 +206,108 @@ func SetToken(id int, t types.Token, token string, hoursValid int) (err error) {
 		return err
 	}
 
+	defer statement.Close()
+
 	_, err = statement.Exec(token, hoursValid, id)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// UpdateMMR updates the mmr for the two specified clients, as well as w/d/l stats
+func UpdateMMR(client1ID uint64, client1MatchStats types.MatchStats, client2ID uint64, client2MatchStats types.MatchStats, winner elo.Player) (err error) {
+	transaction, err := db.Begin()
+
+	if err != nil {
+		return err
+	}
+
+	// Player 1
+	if winner == elo.Draw {
+		client1MatchStats.Draws++
+	} else if winner == elo.Player1 {
+		client1MatchStats.Wins++
+	} else {
+		client1MatchStats.Losses++
+	}
+
+	statement, err := db.Prepare(psUpdateMMR)
+	if err != nil {
+		transaction.Rollback()
+		return err
+	}
+
+	defer statement.Close()
+
+	_, err = statement.Exec(client1MatchStats.MMR, client1MatchStats.Wins, client1MatchStats.Draws, client1MatchStats.Losses, client1ID)
+	if err != nil {
+		transaction.Rollback()
+		return err
+	}
+
+	// Player 2
+	if winner == elo.Draw {
+		client2MatchStats.Draws++
+	} else if winner == elo.Player2 {
+		client2MatchStats.Wins++
+	} else {
+		client2MatchStats.Losses++
+	}
+
+	statement, err = db.Prepare(psUpdateMMR)
+	if err != nil {
+		transaction.Rollback()
+		return err
+	}
+
+	_, err = statement.Exec(client2MatchStats.MMR, client2MatchStats.Wins, client2MatchStats.Draws, client2MatchStats.Losses, client2ID)
+	if err != nil {
+		transaction.Rollback()
+		return err
+	}
+
+	transaction.Commit()
+
+	return err
+}
+
+// GetMatchStats returns the match stats (mmr, w/d/l) for the specified client
+func GetMatchStats(clientID uint64) (matchStats types.MatchStats, err error) {
+	statement, err := db.Prepare(psGetMatchStats)
+	if err != nil {
+		return matchStats, err
+	}
+
+	defer statement.Close()
+
+	err = statement.QueryRow(clientID).Scan(&matchStats.MMR, &matchStats.Wins, &matchStats.Draws, &matchStats.Losses)
+	if err != nil {
+		return matchStats, err
+	}
+
+	return matchStats, nil
+}
+
+// HasRequiredPrivilege returns true if the specified user has equal, or higher privilege than the specified level
+func HasRequiredPrivilege(handle string, privilegeLevelToCheck uint8) (isPrivileged bool, err error) {
+	statement, err := db.Prepare(psGetPrivilege)
+	if err != nil {
+		return false, err
+	}
+
+	defer statement.Close()
+
+	var actualPrivilege uint8
+	err = statement.QueryRow(handle).Scan(&actualPrivilege)
+	if err != nil {
+		return false, errors.New("The user specified in the auth header does not exist")
+	}
+
+	isPrivileged = actualPrivilege >= privilegeLevelToCheck
+
+	return isPrivileged, nil
 }
 
 func createAddTokenPS(t types.Token) (ps string) {

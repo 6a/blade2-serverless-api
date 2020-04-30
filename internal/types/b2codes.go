@@ -10,6 +10,7 @@ const (
 	OffsetCreateAccountEmail    = 300
 	OffsetCreateAccountPassword = 400
 	OffsetAuth                  = 500
+	OffsetMMR                   = 600
 )
 
 // Success - does this really need a comment, linterさん?
@@ -54,4 +55,12 @@ const (
 	AuthHeaderFormat
 	AuthInsufficientPermissions
 	AuthUsernameOrPasswordIncorrect
+	AuthPrivilegeInsufficient
+)
+
+// Update MMR errors
+const (
+	Player1IDMissingOrWrongType B2ResultCode = iota + OffsetMMR
+	Player2IDMissingOrWrongType
+	WinnerMissingOrWrongType
 )

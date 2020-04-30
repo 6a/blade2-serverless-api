@@ -12,7 +12,34 @@ func packageGenericError(httpCode types.HTTPCode, b2code types.B2ResultCode, err
 	return types.MakeLambdaResponse(httpCode, b2code, err.Error())
 }
 
-func validateFields(target types.UserCreationRequest) (ok bool, code types.B2ResultCode, payload string) {
+func validateMMRUpdateFields(target types.MMRUpdateRequest) (ok bool, code types.B2ResultCode, payload string) {
+	var field string
+	var expectedType string
+
+	if target.Player1ID == nil {
+		field = "player1id"
+		code = types.Player1IDMissingOrWrongType
+		expectedType = "uint64"
+	} else if target.Player2ID == nil {
+		field = "player2id"
+		code = types.Player2IDMissingOrWrongType
+		expectedType = "uint64"
+	} else if target.Winner == nil {
+		field = "winner"
+		code = types.WinnerMissingOrWrongType
+		expectedType = "uint8"
+	} else {
+		ok = true
+	}
+
+	if len(field) != 0 {
+		payload = fmt.Sprintf("Field (%v of type %v) not found, or could not be parsed due to incorrect typing", field, expectedType)
+	}
+
+	return ok, code, payload
+}
+
+func validateUCRFields(target types.UserCreationRequest) (ok bool, code types.B2ResultCode, payload string) {
 	var field string
 	var expectedType string
 
@@ -120,6 +147,20 @@ func packageCreateAccountError(err error) (response types.LambdaResponse) {
 	} else {
 		code = types.DatabaseError
 		payload = fmt.Sprintf("Unknown database error: %v", err.Error())
+	}
+
+	return types.MakeLambdaResponse(400, code, payload)
+}
+
+func packageMMRUpdateError(playerID uint64, mmrerror error) (response types.LambdaResponse) {
+	code := types.DatabaseError
+	payload := ""
+
+	if strings.Contains(mmrerror.Error(), "no rows in result set") {
+		payload = fmt.Sprintf("MMR update error - player [ %v ] not found", playerID)
+	} else {
+		code = types.DatabaseError
+		payload = fmt.Sprintf("Unknown database error: %v", mmrerror.Error())
 	}
 
 	return types.MakeLambdaResponse(400, code, payload)

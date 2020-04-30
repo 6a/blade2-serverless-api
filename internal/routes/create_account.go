@@ -22,7 +22,7 @@ func CreateAccount(ctx context.Context, request events.APIGatewayProxyRequest) (
 		return r, nil
 	}
 
-	fieldsValid, code, payload := validateFields(ucr)
+	fieldsValid, code, payload := validateUCRFields(ucr)
 	if !fieldsValid {
 		r = types.MakeLambdaResponse(400, code, payload)
 		return r, nil
