@@ -52,7 +52,7 @@ func SetNewTenXMod(newMod float64) {
 	tenXMod = newMod
 }
 
-// Interal methods ------------------------------------------------------------------------------------------------------------------------
+// Internal methods ------------------------------------------------------------------------------------------------------------------------
 
 func getWinChance(player1Elo int16, player2Elo int16) (player1Chance float64, player2Chance float64) {
 	diff := player2Elo - player1Elo
