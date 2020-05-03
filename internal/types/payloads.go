@@ -46,16 +46,19 @@ type LeaderboardRow struct {
 	OutOf       uint64  `json:"outof"`
 }
 
-// Fill populates a leaderboards row object
-func (row *LeaderboardRow) Fill(avatar uint8, mmr int16, wins uint32, draws uint32, losses uint32, winratio float32, total int64, publicID string, rank uint64, outOf uint64) {
-	row.Avatar = avatar
-	row.MMR = mmr
-	row.Wins = wins
-	row.Draws = draws
-	row.Losses = losses
-	row.WinRatio = winratio
-	row.RankedTotal = total
-	row.PublicID = publicID
-	row.Rank = rank
-	row.OutOf = outOf
+// MatchHistory is a container for the response payload of a successful match history get request
+type MatchHistory struct {
+	Rows []MatchHistoryRow `json:"rows"`
+}
+
+// MatchHistoryRow is a single row in a players match history
+type MatchHistoryRow struct {
+	MatchID         uint64    `json:"matchid"`
+	Player1Handle   string    `json:"player1handle"`
+	Player1PublicID string    `json:"player1pid"`
+	Player2Handle   string    `json:"player2handle"`
+	Player2PublicID string    `json:"player2pid"`
+	WinnerHandle    string    `json:"winnerhandle"`
+	WinnerPublicID  string    `json:"winnerpid"`
+	EndTime         time.Time `json:"endtime"`
 }

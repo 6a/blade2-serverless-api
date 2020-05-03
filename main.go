@@ -13,15 +13,15 @@ func main() {
 	database.Init()
 
 	ev := events.APIGatewayProxyRequest{}
-	ev.Headers = make(map[string]string)
-	// ev.PathParameters = make(map[string]string, 1)
-	// ev.PathParameters["pid"] = ""
-	ev.QueryStringParameters = make(map[string]string, 2)
-	ev.QueryStringParameters["from"] = "0"
-	ev.QueryStringParameters["count"] = "10"
-	ev.QueryStringParameters["pid"] = "bqnfd6e4h65c72kc0340"
+	// ev.Headers = make(map[string]string)
+	ev.PathParameters = make(map[string]string, 1)
+	ev.PathParameters["pid"] = "bqnf9bu4h65c72kc033g"
+	// ev.QueryStringParameters = make(map[string]string, 2)
+	// ev.QueryStringParameters["from"] = "0"
+	// ev.QueryStringParameters["count"] = "10"
+	// ev.QueryStringParameters["pid"] = "bqnfd6e4h65c72kc0340"
 
-	r, err := routes.GetLeaderboards(nil, ev)
+	r, err := routes.GetMatchHistory(nil, ev)
 
 	if err != nil {
 		log.Fatal(err)
@@ -29,9 +29,8 @@ func main() {
 
 	data, err := json.MarshalIndent(r.Body, "", "  ")
 	if err != nil {
-		log.Print(r)
+		log.Print(r.Body)
 	} else {
 		log.Print(string(data))
 	}
-
 }

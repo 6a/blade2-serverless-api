@@ -178,3 +178,10 @@ func packageLeaderboardsError(lbError error) (response types.LambdaResponse) {
 
 	return types.MakeLambdaResponse(400, code, payload)
 }
+
+func packageMatchHistoryError(mhError error) (response types.LambdaResponse) {
+	code := types.DatabaseError
+	payload := fmt.Sprintf("Unknown database error: %v", mhError.Error())
+
+	return types.MakeLambdaResponse(400, code, payload)
+}

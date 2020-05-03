@@ -66,7 +66,7 @@ var psGetIndividualRank = fmt.Sprintf("SELECT * FROM (SELECT `t`.`avatar`, `t`.`
 var psGetLeaderboardsCount = fmt.Sprintf("SELECT COUNT(*) FROM `%v`.`%v` WHERE `id` > 100;", dbname, dbtableProfiles)
 
 // This one is uber long but it cant be multi-lined due to containing back-ticks
-var psGetMatchHistory = fmt.Sprintf("SELECT `m`.`id`, `p1`.`handle` as `player1handle`, `p1`.`public_id` as `player1pid`, `p2`.`handle` as `player2handle`, `p2`.`public_id` as `player2pid`, `w`.`public_id` as `winnerpid`, `w`.`handle` as `winnerhandle`, `m`.`end` FROM `%[1]v`.`%[2]v` `m` JOIN `[1]v`.`%[3]v` `p1` on `p1`.`id` = `m`.`player1` JOIN `[1]v`.`%[3]v` `p2` on `p2`.`id` = `m`.`player2` JOIN `[1]v`.`%[3]v` `w` on `w`.`id` = `m`.`winner` WHERE 140 IN(`player1`, `player2`) AND `phase` = 2 ORDER BY `end` DESC;", dbname, dbtableMatches, dbtableUsers)
+var psGetMatchHistory = fmt.Sprintf("SELECT `m`.`id`, `p1`.`handle` as `player1handle`, `p1`.`public_id` as `player1pid`, `p2`.`handle` as `player2handle`, `p2`.`public_id` as `player2pid`, `w`.`handle` as `winnerhandle`, `w`.`public_id` as `winnerpid`, `m`.`end` FROM `%[1]v`.`%[2]v` `m` JOIN `%[1]v`.`%[3]v` `p1` on `p1`.`id` = `m`.`player1` JOIN `%[1]v`.`%[3]v` `p2` on `p2`.`id` = `m`.`player2` JOIN `%[1]v`.`%[3]v` `w` on `w`.`id` = `m`.`winner` WHERE ? IN(`player1`, `player2`) AND `phase` = 2 ORDER BY `end` DESC, `id` DESC;", dbname, dbtableMatches, dbtableUsers)
 
 var connString = fmt.Sprintf("%v:%v@(%v:%v)/%v?tls=skip-verify&parseTime=true", dbuser, dbpass, dburl, dbport, dbname)
 
@@ -436,21 +436,23 @@ func GetLeaderboards(publicID string, start uint64, count uint64) (leaderboards 
 
 	defer rows.Close()
 
-	var index uint64 = 0
 	for rows.Next() {
-		leaderboards.Leaderboards = append(leaderboards.Leaderboards, types.LeaderboardRow{})
+
+		row := types.LeaderboardRow{
+			OutOf: leaderboardsCount,
+		}
 
 		var winRatio *float32 = nil
 		err := rows.Scan(
-			&leaderboards.Leaderboards[index].Avatar,
-			&leaderboards.Leaderboards[index].MMR,
-			&leaderboards.Leaderboards[index].Wins,
-			&leaderboards.Leaderboards[index].Draws,
-			&leaderboards.Leaderboards[index].Losses,
+			&row.Avatar,
+			&row.MMR,
+			&row.Wins,
+			&row.Draws,
+			&row.Losses,
 			&winRatio,
-			&leaderboards.Leaderboards[index].RankedTotal,
-			&leaderboards.Leaderboards[index].PublicID,
-			&leaderboards.Leaderboards[index].Rank,
+			&row.RankedTotal,
+			&row.PublicID,
+			&row.Rank,
 		)
 
 		if err != nil {
@@ -458,17 +460,58 @@ func GetLeaderboards(publicID string, start uint64, count uint64) (leaderboards 
 		}
 
 		if winRatio == nil {
-			leaderboards.Leaderboards[index].WinRatio = 0
+			row.WinRatio = 0
 		} else {
-			leaderboards.Leaderboards[index].WinRatio = *winRatio
+			row.WinRatio = *winRatio
 		}
 
-		leaderboards.Leaderboards[index].OutOf = leaderboardsCount
-
-		index++
+		leaderboards.Leaderboards = append(leaderboards.Leaderboards, row)
 	}
 
 	return leaderboards, nil
+}
+
+// GetMatchHistory returns the match history for the specified user
+func GetMatchHistory(DBID uint64) (history types.MatchHistory, err error) {
+	statement, err := db.Prepare(psGetMatchHistory)
+	if err != nil {
+		return history, err
+	}
+
+	defer statement.Close()
+
+	rows, err := statement.Query(DBID)
+	if err != nil {
+		return history, err
+	}
+
+	history.Rows = make([]types.MatchHistoryRow, 0)
+
+	defer rows.Close()
+
+	for rows.Next() {
+
+		row := types.MatchHistoryRow{}
+
+		err := rows.Scan(
+			&row.MatchID,
+			&row.Player1Handle,
+			&row.Player1PublicID,
+			&row.Player2Handle,
+			&row.Player2PublicID,
+			&row.WinnerHandle,
+			&row.WinnerPublicID,
+			&row.EndTime,
+		)
+
+		if err != nil {
+			return history, err
+		}
+
+		history.Rows = append(history.Rows, row)
+	}
+
+	return history, nil
 }
 
 func createAddTokenPS(t types.Token) (ps string) {
@@ -498,112 +541,3 @@ func userExists(username string) (exists bool, err error) {
 func makeConstantTime(startTime time.Time, desiredTime time.Duration) {
 	time.Sleep(desiredTime - time.Since(startTime))
 }
-
-// // GetLeaderboard returns the leaderboard info, asligned with the specified user and capped to n results
-// func GetLeaderboard(username string, maxResults int) (leaderboard types.Leaderboard, err error) {
-// 	statement, err := db.Prepare(psGetUser)
-// 	if err != nil {
-// 		return leaderboard, err
-// 	}
-
-// 	defer statement.Close()
-
-// 	var (
-// 		name   string
-// 		rank   int
-// 		wins   int
-// 		ratio  float32
-// 		draws  int
-// 		losses int
-// 		played int
-// 	)
-
-// 	err = statement.QueryRow(username).Scan(&rank, &wins, &ratio, &draws, &losses, &played)
-
-// 	if err != nil {
-// 		return leaderboard, err
-// 	}
-
-// 	statement, err = db.Prepare(psCount)
-// 	if err != nil {
-// 		return leaderboard, err
-// 	}
-
-// 	defer statement.Close()
-
-// 	var outof int
-// 	err = statement.QueryRow().Scan(&outof)
-// 	if err != nil {
-// 		return leaderboard, err
-// 	}
-
-// 	leaderboard.User.Fill(username, rank, outof, wins, ratio, draws, losses, played)
-
-// 	statement, err = db.Prepare(psGetTopN)
-// 	if err != nil {
-// 		return leaderboard, err
-// 	}
-
-// 	defer statement.Close()
-// 	rows, err := statement.Query(maxResults)
-// 	if err != nil {
-// 		return leaderboard, err
-// 	}
-
-// 	leaderboard.Leaderboard = make([]types.LeaderboardRow, 0)
-
-// 	defer rows.Close()
-// 	for rows.Next() {
-// 		err := rows.Scan(&rank, &name, &wins, &ratio, &draws, &losses, &played)
-// 		if err != nil {
-// 			return leaderboard, err
-// 		}
-
-// 		var row = types.LeaderboardRow{}
-// 		row.Fill(name, rank, outof, wins, ratio, draws, losses, played)
-// 		leaderboard.Leaderboard = append(leaderboard.Leaderboard, row)
-// 	}
-
-// 	return leaderboard, err
-// }
-
-// // Update updates the user specified in the input data with the deltas also specified in the input data
-// func Update(indata types.UserUpdateRequest) (err error) {
-// 	statement, err := db.Prepare(psUpdateUser)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	defer statement.Close()
-
-// 	_, err = statement.Exec(indata.Wins, indata.Draws, indata.Losses, indata.Name)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	return err
-// }
-
-// func validateCredentials(username string, password string) (valid bool, err error) {
-// 	statement, err := db.Prepare(psCheckAuth)
-// 	if err != nil {
-// 		return false, err
-// 	}
-
-// 	defer statement.Close()
-
-// 	var banned bool
-// 	var saltyhash string
-// 	err = statement.QueryRow(username).Scan(&saltyhash, &banned)
-// 	if err != nil {
-// 		return false, err
-// 	}
-
-// 	if banned {
-// 		return false, errors.New("Your account has been banned")
-// 	}
-
-// 	valid, err = argon2id.ComparePasswordAndHash(password, saltyhash)
-
-// 	return valid, nil
-// }

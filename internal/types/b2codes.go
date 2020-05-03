@@ -13,6 +13,7 @@ const (
 	OffsetMMR                   = 600
 	OffsetGetProfile            = 700
 	OffsetLeaderboards          = 800
+	OffsetGetMatchHistory       = 900
 )
 
 // Success - does this really need a comment, linterさん?
@@ -79,4 +80,10 @@ const (
 	LeaderboardsRangeFromInvalid
 	LeaderboardsRangeCountMissing
 	LeaderboardsRangeCountInvalid
+)
+
+// Get Match History errors
+const (
+	MatchHistoryGetPublicIDMising B2ResultCode = iota + OffsetGetMatchHistory
+	MatchHistoryGetPublicIDNotFound
 )
