@@ -61,11 +61,10 @@ var psGetPrivilege = fmt.Sprintf("SELECT `privilege` FROM `%v`.`%v` WHERE `handl
 var psGetMatchStats = fmt.Sprintf("SELECT `mmr`, `wins`, `draws`, `losses` FROM `%v`.`%v` WHERE `id` = ?;", dbname, dbtableProfiles)
 var psUpdateMMR = fmt.Sprintf("UPDATE `%v`.`%v` SET `mmr` = ?, `wins` = ?, `draws` = ?, `losses` = ? WHERE `id` = ?;", dbname, dbtableProfiles)
 var psGetProfile = fmt.Sprintf("SELECT `avatar`, `mmr`, `wins`, `draws`, `losses`, `winratio`, `ranked_total`, `created` FROM `%v`.`%v` WHERE `id` = ?;", dbname, dbtableProfiles)
+var psGetLeaderboards = fmt.Sprintf("SELECT `t`.`avatar`, `t`.`mmr`, `t`.`wins`, `t`.`draws`, `t`.`losses`, `t`.`winratio`, `t`.`total`, `t`.`pid`, RANK() OVER (ORDER BY `t`.`mmr` DESC, `t`.`winratio` DESC) AS `rank` FROM (SELECT `avatar`,  `mmr`, `wins`, `draws`, `losses`, `winratio`, `ranked_total` AS `total`, `public_id` AS `pid`, `id`  FROM `%v`.`%v` WHERE `id` > 100) AS t ORDER BY `rank` LIMIT ? OFFSET ?;", dbname, dbtableProfiles)
+var psGetIndividualRank = fmt.Sprintf("SELECT * FROM (SELECT `t`.`avatar`, `t`.`mmr`, `t`.`wins`, `t`.`draws`, `t`.`losses`, `t`.`winratio`, `t`.`total`, `t`.`pid`, RANK() OVER (ORDER BY `t`.`mmr` DESC, `t`.`winratio` DESC) AS `rank` FROM (SELECT `avatar`,  `mmr`, `wins`, `draws`, `losses`, `winratio`, `ranked_total` AS `total`, `public_id` AS `pid`, `id` FROM `%v`.`%v` WHERE `id` > 100) AS t) AS rt WHERE `pid` = ?;", dbname, dbtableProfiles)
+var psGetLeaderboardsCount = fmt.Sprintf("SELECT COUNT(*) FROM `%v`.`%v` WHERE `id` > 100;", dbname, dbtableProfiles)
 
-// var psGetTopN = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `name`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` ORDER BY `rank` = 0, `rank`, `winratio` DESC LIMIT ?;", dbname, dbtable)
-// var psGetUser = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` WHERE `name` = ?;", dbname, dbtable)
-// var psUpdateUser = fmt.Sprintf("UPDATE `%v`.`%v` SET `wins` = (`wins` + ?), `draws` = (`draws` + ?), `losses` = (`losses` + ?) WHERE `name` = ?;", dbname, dbtable)
-// var psCount = fmt.Sprintf("SELECT COUNT(*) FROM `%v`.`%v`;", dbname, dbtable)
 var connString = fmt.Sprintf("%v:%v@(%v:%v)/%v?tls=skip-verify&parseTime=true", dbuser, dbpass, dburl, dbport, dbname)
 
 // Init should be called at the start of the function to open a connection to the database
@@ -91,13 +90,14 @@ func CreateUser(handle string, email string, password string) (emailValidationTo
 
 	transaction, err := db.Begin()
 
+	defer transaction.Rollback()
+
 	if err != nil {
 		return "", err
 	}
 
 	statement, err := db.Prepare(psCreateAccount)
 	if err != nil {
-		transaction.Rollback()
 		return "", err
 	}
 
@@ -105,37 +105,37 @@ func CreateUser(handle string, email string, password string) (emailValidationTo
 
 	saltedhash, err := argon2id.CreateHash(password, &argonParams)
 	if err != nil {
-		transaction.Rollback()
 		return "", err
 	}
 
 	publicID := xid.New()
 	_, err = statement.Exec(publicID, handle, email, saltedhash)
 	if err != nil {
-		transaction.Rollback()
 		return "", err
 	}
 
 	emailConfirmationToken, err := rid.RandomString(settings.EmailConfirmationTokenLength)
 
 	if err != nil {
-		transaction.Rollback()
 		return "", err
 	}
 
 	statement, err = db.Prepare(psCreateTokenRowWithEmailToken)
 	if err != nil {
-		transaction.Rollback()
 		return "", err
 	}
+
+	defer statement.Close()
 
 	_, err = statement.Exec(emailConfirmationToken, settings.EmailConfirmationTokenLifetime)
 	if err != nil {
-		transaction.Rollback()
 		return "", err
 	}
 
-	transaction.Commit()
+	err = transaction.Commit()
+	if err != nil {
+		return "", err
+	}
 
 	return emailConfirmationToken, err
 }
@@ -226,6 +226,8 @@ func UpdateMMR(client1ID uint64, client1MatchStats types.MatchStats, client2ID u
 		return err
 	}
 
+	defer transaction.Rollback()
+
 	// Player 1
 	if winner == elo.Draw {
 		client1MatchStats.Draws++
@@ -237,7 +239,6 @@ func UpdateMMR(client1ID uint64, client1MatchStats types.MatchStats, client2ID u
 
 	statement, err := db.Prepare(psUpdateMMR)
 	if err != nil {
-		transaction.Rollback()
 		return err
 	}
 
@@ -245,7 +246,6 @@ func UpdateMMR(client1ID uint64, client1MatchStats types.MatchStats, client2ID u
 
 	_, err = statement.Exec(client1MatchStats.MMR, client1MatchStats.Wins, client1MatchStats.Draws, client1MatchStats.Losses, client1ID)
 	if err != nil {
-		transaction.Rollback()
 		return err
 	}
 
@@ -260,17 +260,20 @@ func UpdateMMR(client1ID uint64, client1MatchStats types.MatchStats, client2ID u
 
 	statement, err = db.Prepare(psUpdateMMR)
 	if err != nil {
-		transaction.Rollback()
 		return err
 	}
 
+	defer statement.Close()
+
 	_, err = statement.Exec(client2MatchStats.MMR, client2MatchStats.Wins, client2MatchStats.Draws, client2MatchStats.Losses, client2ID)
 	if err != nil {
-		transaction.Rollback()
 		return err
 	}
 
 	transaction.Commit()
+	if err != nil {
+		return err
+	}
 
 	return err
 }
@@ -346,9 +349,123 @@ func GetProfile(DBID uint64) (profile types.ProfileResponsePayload, err error) {
 
 	if winRatio == nil {
 		profile.WinRatio = 0
+	} else {
+		profile.WinRatio = *winRatio
 	}
 
 	return profile, err
+}
+
+// GetLeaderboards returns the leaderboards, starting at rank <start> returning <count> results, as well
+// as an extra blob containg the details for the user specified
+func GetLeaderboards(publicID string, start uint64, count uint64) (leaderboards types.LeaderboardResponsePayload, err error) {
+	transaction, err := db.Begin()
+	if err != nil {
+		return leaderboards, err
+	}
+
+	defer transaction.Rollback()
+
+	statement, err := db.Prepare(psGetLeaderboardsCount)
+	if err != nil {
+		return leaderboards, err
+	}
+
+	defer statement.Close()
+
+	var leaderboardsCount uint64
+	err = statement.QueryRow().Scan(&leaderboardsCount)
+	if err != nil {
+		return leaderboards, err
+	}
+
+	if publicID != "" {
+		statement, err = db.Prepare(psGetIndividualRank)
+		if err != nil {
+			return leaderboards, err
+		}
+
+		defer statement.Close()
+
+		var winRatio *float32 = nil
+		err = statement.QueryRow(publicID).Scan(
+			&leaderboards.User.Avatar,
+			&leaderboards.User.MMR,
+			&leaderboards.User.Wins,
+			&leaderboards.User.Draws,
+			&leaderboards.User.Losses,
+			&winRatio,
+			&leaderboards.User.RankedTotal,
+			&leaderboards.User.PublicID,
+			&leaderboards.User.Rank,
+		)
+
+		// Only report db errors, not found = silently return default values
+		if err != nil {
+			if err != sql.ErrNoRows {
+				return leaderboards, err
+			}
+		} else {
+			if winRatio == nil {
+				leaderboards.User.WinRatio = 0
+			} else {
+				leaderboards.User.WinRatio = *winRatio
+			}
+
+			leaderboards.User.WinRatio = *winRatio
+			leaderboards.User.OutOf = leaderboardsCount
+		}
+	}
+
+	statement, err = db.Prepare(psGetLeaderboards)
+	if err != nil {
+		return leaderboards, err
+	}
+
+	defer statement.Close()
+
+	rows, err := statement.Query(count, start)
+	if err != nil {
+		return leaderboards, err
+	}
+
+	leaderboards.Leaderboards = make([]types.LeaderboardRow, 0)
+
+	defer rows.Close()
+
+	var index uint64 = 0
+	for rows.Next() {
+		leaderboards.Leaderboards = append(leaderboards.Leaderboards, types.LeaderboardRow{})
+
+		var winRatio *float32 = nil
+		err := rows.Scan(
+			&leaderboards.Leaderboards[index].Avatar,
+			&leaderboards.Leaderboards[index].MMR,
+			&leaderboards.Leaderboards[index].Wins,
+			&leaderboards.Leaderboards[index].Draws,
+			&leaderboards.Leaderboards[index].Losses,
+			&winRatio,
+			&leaderboards.Leaderboards[index].RankedTotal,
+			&leaderboards.Leaderboards[index].PublicID,
+			&leaderboards.Leaderboards[index].Rank,
+		)
+
+		if err != nil {
+			return leaderboards, err
+		}
+
+		if winRatio == nil {
+			leaderboards.Leaderboards[index].WinRatio = 0
+		} else {
+			leaderboards.Leaderboards[index].WinRatio = *winRatio
+		}
+
+		leaderboards.Leaderboards[index].OutOf = leaderboardsCount
+
+		index++
+	}
+
+	return leaderboards, nil
 }
 
 func createAddTokenPS(t types.Token) (ps string) {

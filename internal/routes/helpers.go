@@ -171,3 +171,10 @@ func packageProfileGetError(publicID string, pgError error) (response types.Lamb
 
 	return types.MakeLambdaResponse(400, code, payload)
 }
+
+func packageLeaderboardsError(lbError error) (response types.LambdaResponse) {
+	code := types.DatabaseError
+	payload := fmt.Sprintf("Unknown database error: %v", lbError.Error())
+
+	return types.MakeLambdaResponse(400, code, payload)
+}

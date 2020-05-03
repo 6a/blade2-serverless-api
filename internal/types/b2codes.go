@@ -12,6 +12,7 @@ const (
 	OffsetAuth                  = 500
 	OffsetMMR                   = 600
 	OffsetGetProfile            = 700
+	OffsetLeaderboards          = 800
 )
 
 // Success - does this really need a comment, linterさん?
@@ -70,4 +71,12 @@ const (
 const (
 	ProfileGetPublicIDMising B2ResultCode = iota + OffsetGetProfile
 	ProfileGetPublicIDNotFound
+)
+
+// Get Leaderboards errors
+const (
+	LeaderboardsRangeFromMissing B2ResultCode = iota + OffsetLeaderboards
+	LeaderboardsRangeFromInvalid
+	LeaderboardsRangeCountMissing
+	LeaderboardsRangeCountInvalid
 )
