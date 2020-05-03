@@ -65,6 +65,9 @@ var psGetLeaderboards = fmt.Sprintf("SELECT `t`.`avatar`, `t`.`mmr`, `t`.`wins`,
 var psGetIndividualRank = fmt.Sprintf("SELECT * FROM (SELECT `t`.`avatar`, `t`.`mmr`, `t`.`wins`, `t`.`draws`, `t`.`losses`, `t`.`winratio`, `t`.`total`, `t`.`pid`, RANK() OVER (ORDER BY `t`.`mmr` DESC, `t`.`winratio` DESC) AS `rank` FROM (SELECT `avatar`,  `mmr`, `wins`, `draws`, `losses`, `winratio`, `ranked_total` AS `total`, `public_id` AS `pid`, `id` FROM `%v`.`%v` WHERE `id` > 100) AS t) AS rt WHERE `pid` = ?;", dbname, dbtableProfiles)
 var psGetLeaderboardsCount = fmt.Sprintf("SELECT COUNT(*) FROM `%v`.`%v` WHERE `id` > 100;", dbname, dbtableProfiles)
 
+// This one is uber long but it cant be multi-lined due to containing back-ticks
+var psGetMatchHistory = fmt.Sprintf("SELECT `m`.`id`, `p1`.`handle` as `player1handle`, `p1`.`public_id` as `player1pid`, `p2`.`handle` as `player2handle`, `p2`.`public_id` as `player2pid`, `w`.`public_id` as `winnerpid`, `w`.`handle` as `winnerhandle`, `m`.`end` FROM `%[1]v`.`%[2]v` `m` JOIN `[1]v`.`%[3]v` `p1` on `p1`.`id` = `m`.`player1` JOIN `[1]v`.`%[3]v` `p2` on `p2`.`id` = `m`.`player2` JOIN `[1]v`.`%[3]v` `w` on `w`.`id` = `m`.`winner` WHERE 140 IN(`player1`, `player2`) AND `phase` = 2 ORDER BY `end` DESC;", dbname, dbtableMatches, dbtableUsers)
+
 var connString = fmt.Sprintf("%v:%v@(%v:%v)/%v?tls=skip-verify&parseTime=true", dbuser, dbpass, dburl, dbport, dbname)
 
 // Init should be called at the start of the function to open a connection to the database
