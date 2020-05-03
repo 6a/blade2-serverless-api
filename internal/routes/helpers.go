@@ -152,16 +152,22 @@ func packageCreateAccountError(err error) (response types.LambdaResponse) {
 	return types.MakeLambdaResponse(400, code, payload)
 }
 
-func packageMMRUpdateError(playerID uint64, mmrerror error) (response types.LambdaResponse) {
+func packageMMRUpdateError(DBID uint64, mmrerror error) (response types.LambdaResponse) {
 	code := types.DatabaseError
 	payload := ""
 
 	if strings.Contains(mmrerror.Error(), "no rows in result set") {
-		payload = fmt.Sprintf("MMR update error - player [ %v ] not found", playerID)
+		payload = fmt.Sprintf("MMR update error - player [ %v ] not found", DBID)
 	} else {
-		code = types.DatabaseError
 		payload = fmt.Sprintf("Unknown database error: %v", mmrerror.Error())
 	}
+
+	return types.MakeLambdaResponse(400, code, payload)
+}
+
+func packageProfileGetError(publicID string, pgError error) (response types.LambdaResponse) {
+	code := types.DatabaseError
+	payload := pgError.Error()
 
 	return types.MakeLambdaResponse(400, code, payload)
 }

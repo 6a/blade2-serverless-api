@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/6a/blade-ii-api/internal/database"
@@ -14,13 +13,10 @@ func main() {
 
 	ev := events.APIGatewayProxyRequest{}
 	ev.Headers = make(map[string]string)
+	// ev.PathParameters = make(map[string]string, 1)
+	// ev.PathParameters["pid"] = ""
 
-	handle := "ケビン・グラハム18"
-	email := "test37@gmail.com"
-	pass := "testpaa1"
-
-	ev.Body = fmt.Sprintf(`{"handle": "%v", "email": "%v", "password": "%v"}`, handle, email, pass)
-	r, err := routes.CreateAccount(nil, ev)
+	r, err := routes.GetProfile(nil, ev)
 
 	if err != nil {
 		log.Fatal(err)

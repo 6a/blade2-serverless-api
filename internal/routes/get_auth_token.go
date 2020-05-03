@@ -12,8 +12,6 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 )
 
-const handleParameter = "user"
-
 // GetAuthToken validates credentials and returns an auth token on success
 func GetAuthToken(ctx context.Context, request events.APIGatewayProxyRequest) (r types.LambdaResponse, err error) {
 	handle, password, err := auth.ExtractCredentials(request.Headers)

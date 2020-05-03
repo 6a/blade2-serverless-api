@@ -11,6 +11,7 @@ const (
 	OffsetCreateAccountPassword = 400
 	OffsetAuth                  = 500
 	OffsetMMR                   = 600
+	OffsetGetProfile            = 700
 )
 
 // Success - does this really need a comment, linterさん?
@@ -63,4 +64,10 @@ const (
 	Player1IDMissingOrWrongType B2ResultCode = iota + OffsetMMR
 	Player2IDMissingOrWrongType
 	WinnerMissingOrWrongType
+)
+
+// Get Profile errors
+const (
+	ProfileGetPublicIDMising B2ResultCode = iota + OffsetGetProfile
+	ProfileGetPublicIDNotFound
 )

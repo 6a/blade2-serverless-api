@@ -52,6 +52,7 @@ var psCreateAccount = fmt.Sprintf("INSERT INTO `%v`.`%v` (`public_id`, `handle`,
 var psCreateTokenRowWithEmailToken = fmt.Sprintf("INSERT INTO `%v`.`%v` (`id`, `email_confirmation`, `email_confirmation_expiry`) VALUES (LAST_INSERT_ID(), ?, DATE_ADD(NOW(), INTERVAL ? HOUR));", dbname, dbtableTokens)
 var psAddTokenWithReplacers = fmt.Sprintf("UPDATE `%v`.`%v` SET `repl_1` = ?, `repl_2` = DATE_ADD(NOW(), INTERVAL ? HOUR) WHERE `id` = ?;", dbname, dbtableTokens)
 
+var psGetDBIDFromPID = fmt.Sprintf("SELECT `id` FROM `%v`.`%v` WHERE `public_id` = ?;", dbname, dbtableUsers)
 var psCheckName = fmt.Sprintf("SELECT EXISTS(SELECT * FROM `%v`.`%v` WHERE `handle` = ?);", dbname, dbtableUsers)
 var psCheckAuth = fmt.Sprintf("SELECT `salted_hash`, `banned` FROM `%v`.`%v` WHERE `handle` = ?;", dbname, dbtableUsers)
 var psGetIDs = fmt.Sprintf("SELECT `id`, `public_id` FROM `%v`.`%v` WHERE `handle` = ?;", dbname, dbtableUsers)
@@ -59,12 +60,13 @@ var psGetPrivilege = fmt.Sprintf("SELECT `privilege` FROM `%v`.`%v` WHERE `handl
 
 var psGetMatchStats = fmt.Sprintf("SELECT `mmr`, `wins`, `draws`, `losses` FROM `%v`.`%v` WHERE `id` = ?;", dbname, dbtableProfiles)
 var psUpdateMMR = fmt.Sprintf("UPDATE `%v`.`%v` SET `mmr` = ?, `wins` = ?, `draws` = ?, `losses` = ? WHERE `id` = ?;", dbname, dbtableProfiles)
+var psGetProfile = fmt.Sprintf("SELECT `avatar`, `mmr`, `wins`, `draws`, `losses`, `winratio`, `ranked_total`, `created` FROM `%v`.`%v` WHERE `id` = ?;", dbname, dbtableProfiles)
 
 // var psGetTopN = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `name`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` ORDER BY `rank` = 0, `rank`, `winratio` DESC LIMIT ?;", dbname, dbtable)
 // var psGetUser = fmt.Sprintf("SELECT FIND_IN_SET(`wins`, (SELECT GROUP_CONCAT(`wins` ORDER BY `wins` DESC) FROM `%[1]v`.`%[2]v`)) AS `rank`, `wins`, IFNULL(`winratio`, 0) AS `winratio`, `draws`, `losses`, `played` FROM `%[1]v`.`%[2]v` WHERE `name` = ?;", dbname, dbtable)
 // var psUpdateUser = fmt.Sprintf("UPDATE `%v`.`%v` SET `wins` = (`wins` + ?), `draws` = (`draws` + ?), `losses` = (`losses` + ?) WHERE `name` = ?;", dbname, dbtable)
 // var psCount = fmt.Sprintf("SELECT COUNT(*) FROM `%v`.`%v`;", dbname, dbtable)
-var connString = fmt.Sprintf("%v:%v@(%v:%v)/%v?tls=skip-verify", dbuser, dbpass, dburl, dbport, dbname)
+var connString = fmt.Sprintf("%v:%v@(%v:%v)/%v?tls=skip-verify&parseTime=true", dbuser, dbpass, dburl, dbport, dbname)
 
 // Init should be called at the start of the function to open a connection to the database
 func Init() {
@@ -308,6 +310,45 @@ func HasRequiredPrivilege(handle string, privilegeLevelToCheck uint8) (isPrivile
 	isPrivileged = actualPrivilege >= privilegeLevelToCheck
 
 	return isPrivileged, nil
+}
+
+// GetDBID returns the DBID for the specified public ID
+func GetDBID(publicID string) (DBID uint64, err error) {
+	statement, err := db.Prepare(psGetDBIDFromPID)
+	if err != nil {
+		return DBID, err
+	}
+
+	defer statement.Close()
+
+	err = statement.QueryRow(publicID).Scan(&DBID)
+	if err != nil {
+		return DBID, err
+	}
+
+	return DBID, err
+}
+
+// GetProfile returns profile data for the user with the specified DBID
+func GetProfile(DBID uint64) (profile types.ProfileResponsePayload, err error) {
+	statement, err := db.Prepare(psGetProfile)
+	if err != nil {
+		return profile, err
+	}
+
+	defer statement.Close()
+
+	var winRatio *float32 = nil
+	err = statement.QueryRow(DBID).Scan(&profile.Avatar, &profile.MMR, &profile.Wins, &profile.Draws, &profile.Losses, &winRatio, &profile.RankedTotal, &profile.Created)
+	if err != nil {
+		return profile, err
+	}
+
+	if winRatio == nil {
+		profile.WinRatio = 0
+	}
+
+	return profile, err
 }
 
 func createAddTokenPS(t types.Token) (ps string) {
