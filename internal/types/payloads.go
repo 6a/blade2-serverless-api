@@ -1,20 +1,28 @@
+// Copyright 2020 James Einosuke Stanton. All rights reserved.
+// Use of this source code is governed by the MIT license
+// that can be found in the LICENSE.md file.
+
+// Package types defines types and contstants for this application.
 package types
 
 import "time"
 
-// AuthResponsePayload is a container for the response payload of a successful get auth request
+// Structs defined here should also include json serialization hints. They are used to wrap return data
+// for responses sent back to the client.
+
+// AuthResponsePayload is a container for the response payload of a successful get auth request.
 type AuthResponsePayload struct {
 	PublicID     string `json:"pid"`
 	AuthToken    string `json:"authToken"`
 	RefreshToken string `json:"refreshToken"`
 }
 
-// CreateAccountResponsePayload is a container for the response payload of a successful account creation request
+// CreateAccountResponsePayload is a container for the response payload of a successful account creation request.
 type CreateAccountResponsePayload struct {
 	Handle string `json:"handle"`
 }
 
-// ProfileResponsePayload is a container for the response payload of a successful profile get request
+// ProfileResponsePayload is a container for the response payload of a successful profile get request.
 type ProfileResponsePayload struct {
 	Avatar      uint8     `json:"avatar"`
 	MMR         int16     `json:"mmr"`
@@ -26,13 +34,13 @@ type ProfileResponsePayload struct {
 	Created     time.Time `json:"created"`
 }
 
-// LeaderboardResponsePayload is a container for the response payload of a successful leaderboards get request
+// LeaderboardResponsePayload is a container for the response payload of a successful leaderboards get request.
 type LeaderboardResponsePayload struct {
 	Leaderboards []LeaderboardRow `json:"leaderboards"`
 	User         LeaderboardRow   `json:"user"`
 }
 
-// LeaderboardRow represents a single row in the leaderboards
+// LeaderboardRow represents a single row in the leaderboards.
 type LeaderboardRow struct {
 	Avatar      uint8   `json:"avatar"`
 	MMR         int16   `json:"mmr"`
@@ -46,12 +54,12 @@ type LeaderboardRow struct {
 	OutOf       uint64  `json:"outof"`
 }
 
-// MatchHistory is a container for the response payload of a successful match history get request
+// MatchHistory is a container for the response payload of a successful match history get request.
 type MatchHistory struct {
 	Rows []MatchHistoryRow `json:"rows"`
 }
 
-// MatchHistoryRow is a single row in a players match history
+// MatchHistoryRow is a single row in a players match history.
 type MatchHistoryRow struct {
 	MatchID         uint64    `json:"matchid"`
 	Player1Handle   string    `json:"player1handle"`

@@ -1,9 +1,14 @@
+// Copyright 2020 James Einosuke Stanton. All rights reserved.
+// Use of this source code is governed by the MIT license
+// that can be found in the LICENSE.md file.
+
+// Package types defines types and contstants for this application.
 package types
 
-// Token typedef
+// Token is a uint16 typedef used for the enumeration of different token types used by this application.
 type Token byte
 
-// Token Types
+// Token Types.
 const (
 	AuthToken Token = iota
 	EmailConfirmationToken
@@ -11,7 +16,10 @@ const (
 	RefreshToken
 )
 
+// String is a helper function that returns the token as a string.
 func (token Token) String() string {
+
+	// Create an array of all the possible strings.
 	types := [...]string{
 		"auth",
 		"email_confirmation",
@@ -19,52 +27,11 @@ func (token Token) String() string {
 		"refresh",
 	}
 
+	// If the token's value is outside of the accepted range, return a default value.
 	if token < AuthToken || token > RefreshToken {
 		return "unknown"
 	}
 
+	// Get the string from the types array that corresponds with this token.
 	return types[token]
 }
-
-// UserUpdateRequest is a set of deltas used to update the w/d/l for the specified player
-// type UserUpdateRequest struct {
-// 	Name   string `json:"name"`
-// 	Wins   int    `json:"wins"`
-// 	Draws  int    `json:"draws"`
-// 	Losses int    `json:"losses"`
-// }
-
-// LeaderboardRequest describes the data needed get the leaderboard info , aligned with the specified user
-// type LeaderboardRequest struct {
-// 	Name string `json:"name"`
-// }
-
-// // LeaderboardRow described a single row from a leaderboard
-// type LeaderboardRow struct {
-// 	Rank   int     `json:"rank"`
-// 	OutOf  int     `json:"outof"`
-// 	Name   string  `json:"name"`
-// 	Wins   int     `json:"wins"`
-// 	Ratio  float32 `json:"ratio"`
-// 	Draws  int     `json:"draws"`
-// 	Losses int     `json:"losses"`
-// 	Played int     `json:"played"`
-// }
-
-// // Fill will fill a leaderboard row with the provided info
-// func (row *LeaderboardRow) Fill(name string, rank int, outof int, wins int, ratio float32, draws int, losses int, played int) {
-// 	row.Rank = rank
-// 	row.OutOf = outof
-// 	row.Name = name
-// 	row.Wins = wins
-// 	row.Ratio = ratio
-// 	row.Draws = draws
-// 	row.Losses = losses
-// 	row.Played = played
-// }
-
-// // Leaderboard describes a leaderboard, as well as an extra container with information for the specified user
-// type Leaderboard struct {
-// 	User        LeaderboardRow   `json:"user"`
-// 	Leaderboard []LeaderboardRow `json:"leaderboard"`
-// }

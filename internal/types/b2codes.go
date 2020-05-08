@@ -1,9 +1,14 @@
+// Copyright 2020 James Einosuke Stanton. All rights reserved.
+// Use of this source code is governed by the MIT license
+// that can be found in the LICENSE.md file.
+
+// Package types defines types and contstants for this application.
 package types
 
-// B2ResultCode is a uint16 typedef used for the enumeration of result codes from the model layer
+// B2ResultCode is a uint16 typedef used for the enumeration of result codes used by this application.
 type B2ResultCode uint16
 
-// code offsets
+// Code offsets - used to separate codes for different API's.
 const (
 	OffsetGeneric               = 100
 	OffsetCreateAccountHandle   = 200
@@ -16,10 +21,10 @@ const (
 	OffsetGetMatchHistory       = 900
 )
 
-// Success - does this really need a comment, linterさん?
-const Success B2ResultCode = iota
+// Success indicates that a request was successful.
+const Success B2ResultCode = 0
 
-// Generic errors
+// Generic errors.
 const (
 	RequestMarshalError B2ResultCode = iota + OffsetGeneric
 	ResponseMarshalError
@@ -28,7 +33,7 @@ const (
 	EmailSendFailure
 )
 
-// Create account handle errors
+// Create account handle errors.
 const (
 	HandleMissingOrWrongType B2ResultCode = iota + OffsetCreateAccountHandle
 	HandleLength
@@ -38,21 +43,21 @@ const (
 	HandleRude
 )
 
-// Create account email errors
+// Create account email errors.
 const (
 	EmailMissingOrWrongType B2ResultCode = iota + OffsetCreateAccountEmail
 	EmailFormat
 	EmailAlreadyInUse
 )
 
-// Create account password errors
+// Create account password errors.
 const (
 	PasswordMissingOrWrongType B2ResultCode = iota + OffsetCreateAccountPassword
 	PasswordComplexityInsufficient
 	PasswordFormat
 )
 
-// Auth
+// Auth errors.
 const (
 	AuthHeaderMissing B2ResultCode = iota + OffsetAuth
 	AuthHeaderFormat
@@ -61,20 +66,20 @@ const (
 	AuthPrivilegeInsufficient
 )
 
-// Update MMR errors
+// Update MMR errors.
 const (
 	Player1IDMissingOrWrongType B2ResultCode = iota + OffsetMMR
 	Player2IDMissingOrWrongType
 	WinnerMissingOrWrongType
 )
 
-// Get Profile errors
+// Get Profile errors.
 const (
 	ProfileGetPublicIDMising B2ResultCode = iota + OffsetGetProfile
 	ProfileGetPublicIDNotFound
 )
 
-// Get Leaderboards errors
+// Get Leaderboards errors.
 const (
 	LeaderboardsRangeFromMissing B2ResultCode = iota + OffsetLeaderboards
 	LeaderboardsRangeFromInvalid
@@ -82,7 +87,7 @@ const (
 	LeaderboardsRangeCountInvalid
 )
 
-// Get Match History errors
+// Get Match History errors.
 const (
 	MatchHistoryGetPublicIDMising B2ResultCode = iota + OffsetGetMatchHistory
 	MatchHistoryGetPublicIDNotFound
