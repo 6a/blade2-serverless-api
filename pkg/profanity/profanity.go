@@ -1,3 +1,8 @@
+// Copyright 2020 James Einosuke Stanton. All rights reserved.
+// Use of this source code is governed by the MIT license
+// that can be found in the LICENSE.md file.
+
+// Package profanity implements very basic profanity checking.
 package profanity
 
 import (
@@ -9,8 +14,12 @@ import (
 // This is not really an exhaustive check, it's just there to catch obvious rudeness, and as
 // a proof of concept.
 func ContainsProfanity(input string) bool {
+
+	// Convert the input to lower case.
 	inputLower := strings.ToLower(input)
 
+	// Check each entry in the badwords list by regex matching it with the input.
+	// Early exit with true if matched.
 	for _, pattern := range badwords {
 		if pattern.MatchString(inputLower) {
 			return true
@@ -25,7 +34,7 @@ func ContainsProfanity(input string) bool {
 // Besides if there was a username reporting system, people could just use that.
 // For japanese, the source here: https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words/blob/master/ja
 // was taken in it's entirety - most of them seem fine, some seem a bit strict but I was raised abroad so I don't
-// really have any way of knowing the severity of these words
+// really have any way of knowing the severity of these words.
 var badwords = []*regexp.Regexp{
 	// EN
 	regexp.MustCompile(`piss`),

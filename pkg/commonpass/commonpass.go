@@ -1,8 +1,14 @@
+// Copyright 2020 James Einosuke Stanton. All rights reserved.
+// Use of this source code is governed by the MIT license
+// that can be found in the LICENSE.md file.
+
+// Package commonpass provides a basic interface for checking if a string is a known common password.
 package commonpass
 
-// IsPasswordCommon returns true if the provided password is in the list of the 10000 most common passwords
+// IsPasswordCommon returns true if the provided password is in the list of the 10000 most common passwords.
 func IsPasswordCommon(password string) bool {
 
+	// If the specified password is present in the common passwords map, then it is common.
 	if _, ok := commonPasswords[password]; ok {
 		return true
 	}
@@ -10,9 +16,11 @@ func IsPasswordCommon(password string) bool {
 	return false
 }
 
-// A list of the top 10000 common passwords, according to danielmiessler @ GitHub
-// https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10-million-password-list-top-10000.txt
-// Theres no point pruning passwords that are too short from this map as the lookup is near-instant anyway
+// A list of the top 10000 common passwords, according to danielmiessler @ GitHub.
+// Source: https://github.com/danielmiessler/SecLists/blob/master/Passwords/Common-Credentials/10-million-password-list-top-10000.txt.
+// Theres no point pruning passwords that are too short from this map as the lookup is near-instant anyway. Stored as
+// a map of empty structs, which I beleive removes the need to allocate memory for the map value.
+// A map is used as its hashed keys allow for a very fast lookup.
 var commonPasswords = map[string]struct{}{
 	"123456":           {},
 	"password":         {},

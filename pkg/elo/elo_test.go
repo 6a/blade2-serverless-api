@@ -1,10 +1,16 @@
+// Copyright 2020 James Einosuke Stanton. All rights reserved.
+// Use of this source code is governed by the MIT license
+// that can be found in the LICENSE.md file.
+
+// Package elo implements an elo calculator, based on https://www.youtube.com/watch?v=AsYfbmp0To0.
 package elo
 
 import (
 	"testing"
 )
 
-func TestCalculateNewElo(t *testing.T) {
+// Test_CalculateNewElo runs unit tests for the elo calculator.
+func Test_CalculateNewElo(t *testing.T) {
 	type args struct {
 		player1Elo int16
 		player2Elo int16
@@ -84,7 +90,7 @@ func TestCalculateNewElo(t *testing.T) {
 				winner:     Draw,
 			},
 			wantPlayer1NewElo: 2387,
-			wantPlayer2NewElo: 2013, 
+			wantPlayer2NewElo: 2013,
 		},
 	}
 	for _, tt := range tests {
@@ -100,6 +106,7 @@ func TestCalculateNewElo(t *testing.T) {
 	}
 }
 
+// Test_getWinChange runs unit tests for the win chance calculator.
 func Test_getWinChance(t *testing.T) {
 	type args struct {
 		player1Elo int16
