@@ -12,7 +12,7 @@ import (
 	"github.com/6a/blade-ii-api/internal/settings"
 	"github.com/6a/blade-ii-api/internal/types"
 	"github.com/6a/blade-ii-api/pkg/elo"
-	"github.com/6a/blade-ii-api/pkg/rid"
+	"github.com/6a/blade-ii-game-server/pkg/rid"
 
 	"github.com/alexedwards/argon2id"
 	_ "github.com/go-sql-driver/mysql" // mysql driver

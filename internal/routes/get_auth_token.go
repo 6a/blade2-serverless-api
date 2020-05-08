@@ -8,7 +8,8 @@ import (
 	"github.com/6a/blade-ii-api/internal/database"
 	"github.com/6a/blade-ii-api/internal/settings"
 	"github.com/6a/blade-ii-api/internal/types"
-	"github.com/6a/blade-ii-api/pkg/rid"
+
+	"github.com/6a/blade-ii-game-server/pkg/rid"
 	"github.com/aws/aws-lambda-go/events"
 )
 
