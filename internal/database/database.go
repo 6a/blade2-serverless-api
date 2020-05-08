@@ -210,7 +210,8 @@ func CreateUser(handle string, email string, password string) (emailValidationTo
 	return emailConfirmationToken, err
 }
 
-// ValidateCredentials checks if the provided handle exists, and if the hashed password matches the stored hashed password.
+// ValidateCredentials checks if the provided handle exists, the user is not banned, and if the hashed password matches
+// the stored hashed password.
 func ValidateCredentials(handle string, password string) (err error) {
 
 	// Store the start time, so that this function can be made to run in constant time.
@@ -318,8 +319,8 @@ func SetToken(id int, t types.Token, token string, hoursValid int) (err error) {
 	return nil
 }
 
-// UpdateMMR updates the mmr for the two specified clients, as well as w/d/l stats.
-func UpdateMMR(client1DatabaseID uint64, client1MatchStats types.MatchStats, client2DatabaseID uint64, client2MatchStats types.MatchStats, winner elo.Player) (err error) {
+// UpdateMatchStats updates the mmr for the two specified clients, as well as w/d/l stats.
+func UpdateMatchStats(client1DatabaseID uint64, client1MatchStats types.MatchStats, client2DatabaseID uint64, client2MatchStats types.MatchStats, winner elo.Player) (err error) {
 
 	// As this database interaction has multiple steps, begin a transaction to protect against race conditions.
 	transaction, err := db.Begin()
