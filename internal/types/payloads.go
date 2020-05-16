@@ -42,6 +42,7 @@ type LeaderboardResponsePayload struct {
 
 // LeaderboardRow represents a single row in the leaderboards.
 type LeaderboardRow struct {
+	Handle      string  `json:"handle"`
 	Avatar      uint8   `json:"avatar"`
 	MMR         int16   `json:"mmr"`
 	Wins        uint32  `json:"wins"`

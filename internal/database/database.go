@@ -98,10 +98,10 @@ var psUpdateMMR = fmt.Sprintf("UPDATE `%v`.`%v` SET `mmr` = ?, `wins` = ?, `draw
 var psGetProfile = fmt.Sprintf("SELECT `avatar`, `mmr`, `wins`, `draws`, `losses`, `winratio`, `ranked_total`, `created` FROM `%v`.`%v` WHERE `id` = ?;", dbname, dbtableProfiles)
 
 // Get the "avatar", "mmr", "wins", "draws", "losses", "winratio", "ranked_total" (as "total"), "public_id" (as "pid"), and a generated column "rank" for a range of results specified, ordered using the rank function based on the entire table. ID's 99 or less are excluded due to being reserved for admin accounts.
-var psGetLeaderboards = fmt.Sprintf("SELECT `t`.`avatar`, `t`.`mmr`, `t`.`wins`, `t`.`draws`, `t`.`losses`, `t`.`winratio`, `t`.`total`, `t`.`pid`, RANK() OVER (ORDER BY `t`.`mmr` DESC, `t`.`winratio` DESC) AS `rank` FROM (SELECT `avatar`,  `mmr`, `wins`, `draws`, `losses`, `winratio`, `ranked_total` AS `total`, `public_id` AS `pid`, `id`  FROM `%v`.`%v` WHERE `id` >= 100) AS t ORDER BY `rank` LIMIT ? OFFSET ?;", dbname, dbtableProfiles)
+var psGetLeaderboards = fmt.Sprintf("SELECT `t`.`handle`, `t`.`avatar`, `t`.`mmr`, `t`.`wins`, `t`.`draws`, `t`.`losses`, `t`.`winratio`, `t`.`total`, `t`.`pid`, RANK() OVER (ORDER BY `t`.`mmr` DESC, `t`.`winratio` DESC) AS `rank` FROM (SELECT `u`.`handle`, `p`.`avatar`, `p`.`mmr`, `p`.`wins`, `p`.`draws`, `p`.`losses`, `p`.`winratio`,`p`.`ranked_total` AS `total`, `p`.`public_id` AS `pid` FROM `%[1]v`.`%[2]v` `p` JOIN `%[1]v`.`%[3]v` `u` on `u`.`id` = `p`.`id` WHERE `p`.`id` >= 100) AS t ORDER BY `rank` LIMIT ? OFFSET ?;", dbname, dbtableProfiles, dbtableUsers)
 
 // Get the "avatar", "mmr", "wins", "draws", "losses", "winratio", "ranked_total" (as "total"), "public_id" (as "pid"), and a generated column "rank" for the row with the specified public ID, ordered using the rank function based on the entire table. ID's 99 or less are excluded due to being reserved for admin accounts.
-var psGetIndividualRank = fmt.Sprintf("SELECT * FROM (SELECT `t`.`avatar`, `t`.`mmr`, `t`.`wins`, `t`.`draws`, `t`.`losses`, `t`.`winratio`, `t`.`total`, `t`.`pid`, RANK() OVER (ORDER BY `t`.`mmr` DESC, `t`.`winratio` DESC) AS `rank` FROM (SELECT `avatar`,  `mmr`, `wins`, `draws`, `losses`, `winratio`, `ranked_total` AS `total`, `public_id` AS `pid`, `id` FROM `%v`.`%v` WHERE `id` >= 100) AS t) AS rt WHERE `pid` = ?;", dbname, dbtableProfiles)
+var psGetIndividualRank = fmt.Sprintf("SELECT * FROM (SELECT `t`.`handle`, `t`.`avatar`, `t`.`mmr`, `t`.`wins`, `t`.`draws`, `t`.`losses`, `t`.`winratio`, `t`.`total`, `t`.`pid`, RANK() OVER (ORDER BY `t`.`mmr` DESC, `t`.`winratio` DESC) AS `rank` FROM (SELECT `u`.`handle`, `p`.`avatar`, `p`.`mmr`, `p`.`wins`, `p`.`draws`, `p`.`losses`, `p`.`winratio`,`p`.`ranked_total` AS `total`, `p`.`public_id` AS `pid` FROM `%[1]v`.`%[2]v` `p` JOIN `%[1]v`.`%[3]v` `u` on `u`.`id` = `p`.`id` WHERE `p`.`id` >= 100) AS t) AS rt WHERE `pid` = ?", dbname, dbtableProfiles, dbtableUsers)
 
 // Get the size of the leaderboards table a single row with a single column. ID's 99 or less are excluded due to being reserved for admin accounts.
 var psGetLeaderboardsCount = fmt.Sprintf("SELECT COUNT(*) FROM `%v`.`%v` WHERE `id` >= 100;", dbname, dbtableProfiles)
@@ -546,6 +546,7 @@ func GetLeaderboards(publicID string, start uint64, count uint64) (leaderboards 
 		// null, so it is scanned into temporary float32 pointer.
 		var winRatio *float32 = nil
 		err = statement.QueryRow(publicID).Scan(
+			&leaderboards.User.Handle,
 			&leaderboards.User.Avatar,
 			&leaderboards.User.MMR,
 			&leaderboards.User.Wins,
@@ -617,6 +618,7 @@ func GetLeaderboards(publicID string, start uint64, count uint64) (leaderboards 
 		// - it is possible for this value to be null, so it is scanned into temporary float32 pointer.
 		var winRatio *float32 = nil
 		err := rows.Scan(
+			&row.Handle,
 			&row.Avatar,
 			&row.MMR,
 			&row.Wins,
