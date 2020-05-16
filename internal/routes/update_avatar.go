@@ -47,6 +47,12 @@ func UpdateAvatar(ctx context.Context, request events.APIGatewayProxyRequest) (r
 		return r, nil
 	}
 
+	// Check that the avatar ID is within the valid range (don't check < 0 as the argument is a uint)
+	if *aur.Avatar > 9 {
+		r = packageGenericError(400, types.ProfileAvatarUpdateAvatarValueInvalid, errors.New("Avatar must be an int between 0 and 9 inclusive"))
+		return r, nil
+	}
+
 	// Check that the auth token is valid for this user.
 	err = database.CheckAuthToken(pid, *aur.AuthToken)
 	if err != nil {

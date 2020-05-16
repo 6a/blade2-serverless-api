@@ -100,4 +100,5 @@ const (
 const (
 	ProfileAvatarUpdateAvatarMissing B2ResultCode = iota + OffsetUpdateProfile
 	ProfileAvatarUpdateAuthTokenMissing
+	ProfileAvatarUpdateAvatarValueInvalid
 )
