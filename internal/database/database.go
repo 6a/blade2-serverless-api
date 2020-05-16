@@ -6,6 +6,7 @@
 package database
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -24,10 +25,18 @@ import (
 	"github.com/rs/xid"
 )
 
-// passwordCheckConstantTimeMin is the minimum amount of time that password check should take - an attemp to make it constant time.
-// The argon2id hash check should never take this long, so in theory all auth checks should take this amount of time. This may be
-// flawed but I'm not sure... I'm not a netsec expert.
-const passwordCheckConstantTimeMin = time.Millisecond * 1500
+const (
+
+	// passwordCheckConstantTimeMin is the minimum amount of time that password check should take - an attemp to make it constant time.
+	// The argon2id hash check should never take this long, so in theory all auth checks should take this amount of time. This may be
+	// flawed but I'm not sure... I'm not a netsec expert.
+	passwordCheckConstantTimeMin = time.Millisecond * 1500
+
+	// authExpiryGracePeriod defines the minimum duration of validity remaining for a auth token before it's considered invalid.
+	// This exists so that we can avoid race conditions that could occur if a token is changed in the database during an auth
+	// check.
+	authExpiryGracePeriod = time.Minute * 10
+)
 
 var (
 	// db is a pointer to this packages single instance of a database connection.
@@ -88,6 +97,9 @@ var psGetPrivilege = fmt.Sprintf("SELECT `privilege` FROM `%v`.`%v` WHERE `handl
 // Insert a new row into the tokens table, setting "id", "email_confirmation", and "email_confirmation_expiry" with the specified values.
 var psCreateTokenRowWithEmailToken = fmt.Sprintf("INSERT INTO `%v`.`%v` (`id`, `email_confirmation`, `email_confirmation_expiry`) VALUES (LAST_INSERT_ID(), ?, DATE_ADD(NOW(), INTERVAL ? HOUR));", dbname, dbtableTokens)
 
+// Get the "auth", "auth_expiry", and "banned" columns from the row in the tokens table with the specified public ID, JOINED with the users table.
+var psGetAuthData = fmt.Sprintf("SELECT `t`.`auth`, `t`.`auth_expiry`, `u`.`banned` FROM `%[1]v`.`%[2]v` `t` JOIN `%[1]v`.`%[3]v` `u` on `u`.`id` = `t`.`id` WHERE `u`.`public_id` = ?;", dbname, dbtableTokens, dbtableUsers)
+
 // Get the "mmr", "wins", "draws", and "losses" columns from the row in the profiles table with the specified database ID.
 var psGetMatchStats = fmt.Sprintf("SELECT `mmr`, `wins`, `draws`, `losses` FROM `%v`.`%v` WHERE `id` = ?;", dbname, dbtableProfiles)
 
@@ -105,6 +117,9 @@ var psGetIndividualRank = fmt.Sprintf("SELECT * FROM (SELECT `t`.`handle`, `t`.`
 
 // Get the size of the leaderboards table a single row with a single column. ID's 99 or less are excluded due to being reserved for admin accounts.
 var psGetLeaderboardsCount = fmt.Sprintf("SELECT COUNT(*) FROM `%v`.`%v` WHERE `id` >= 100;", dbname, dbtableProfiles)
+
+// Update the "avatar" column for the row in the profiles table with the specified public ID.
+var psUpdateAvatar = fmt.Sprintf("UPDATE `%v`.`%v` SET `avatar` = ? WHERE `public_id` = ?;", dbname, dbtableProfiles)
 
 // Using multiple joins, get the "id" (the match ID), and then "handle" (as "playerNhandle"), and "public_id" (as "playerNpid") for player 1 and 2 respectively, followed by "winnerhandle" and "winnerpid" (from "handle" and "public_id" for the winner), and finally the "end" column, for all of the matches that the specified player took part in, ordered by end time and match ID, in descending order.
 var psGetMatchHistory = fmt.Sprintf("SELECT `m`.`id`, `p1`.`handle` as `player1handle`, `p1`.`public_id` as `player1pid`, `p2`.`handle` as `player2handle`, `p2`.`public_id` as `player2pid`, `w`.`handle` as `winnerhandle`, `w`.`public_id` as `winnerpid`, `m`.`end` FROM `%[1]v`.`%[2]v` `m` JOIN `%[1]v`.`%[3]v` `p1` on `p1`.`id` = `m`.`player1` JOIN `%[1]v`.`%[3]v` `p2` on `p2`.`id` = `m`.`player2` JOIN `%[1]v`.`%[3]v` on IF(`m`.`winner` != 0, `w`.`id` = `m`.`winner`, `w`.`id` = 10) WHERE ? IN(`player1`, `player2`) AND `phase` = 2 ORDER BY `end` DESC, `id` DESC;", dbname, dbtableMatches, dbtableUsers)
@@ -416,6 +431,28 @@ func GetMatchStats(databaseID uint64) (matchStats types.MatchStats, err error) {
 	return matchStats, nil
 }
 
+// UpdateAvatar updates the avatar for the specified user.
+func UpdateAvatar(publicID string, avatar uint8) (err error) {
+
+	// Prepare a statement that will update the avatar for the specified user. Exit early on error.
+	statement, err := db.Prepare(psUpdateAvatar)
+	if err != nil {
+		return err
+	}
+
+	// Defer closing of the statement so that it is cleaned up properly when this function exits.
+	defer statement.Close()
+
+	// Query the database, updating the avatar column in the row in the profiles table with the specified
+	// databaseID
+	_, err = statement.Exec(avatar, publicID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // HasRequiredPrivilege returns true if the specified user has equal, or higher privilege than the specified level.
 func HasRequiredPrivilege(handle string, privilegeLevelToCheck uint8) (isPrivileged bool, err error) {
 
@@ -443,8 +480,8 @@ func HasRequiredPrivilege(handle string, privilegeLevelToCheck uint8) (isPrivile
 	return isPrivileged, nil
 }
 
-// GetDBID returns the databaseID for the specified public ID.
-func GetDBID(publicID string) (databaseID uint64, err error) {
+// GetDatabaseID returns the databaseID for the specified public ID.
+func GetDatabaseID(publicID string) (databaseID uint64, err error) {
 
 	// Prepare a statement that will get the database ID for the specified user. Exit early on error.
 	statement, err := db.Prepare(psGetDBIDFromPID)
@@ -716,6 +753,56 @@ func createAddTokenPS(t types.Token) (ps string) {
 	ps = strings.Replace(ps, "repl_2", fmt.Sprintf("%v_expiry", t.String()), -1)
 
 	return ps
+}
+
+// CheckAuthToken checks to see if the specified publicID is valid, and if the specified
+// auth token is a valid token for the user that it belongs to.
+func CheckAuthToken(publicID string, authToken string) (err error) {
+
+	// Prepare a statement that will get the auth data for the specified user. Exit early on error.
+	statement, err := db.Prepare(psGetAuthData)
+	if err != nil {
+		return err
+	}
+
+	// Defer closing of the statement so that it is cleaned up properly when this function exits.
+	defer statement.Close()
+
+	// Query the profiles table with the specified database ID. The returned row should contain all the required
+	// profile data, which can be scanned into the return profile variable.
+	// Note the edge case for winratio - it is possible for this value to be null, so it is scanned into temporary
+	// float32 pointer.
+	var storedAuthToken string
+	var storedAuthTokenExpiry time.Time
+	var storedAuthTokenUserBanned bool
+	err = statement.QueryRow(publicID).Scan(&storedAuthToken, &storedAuthTokenExpiry, &storedAuthTokenUserBanned)
+	if err != nil {
+		return err
+	}
+
+	// Return an error if this user is banned.
+	if storedAuthTokenUserBanned {
+		return errors.New("The specified user is banned")
+	}
+
+	// Return an error if the auth token is not valid - this is a constant time compare, hence the non trivial
+	// method of comparing the tokens.
+	if subtle.ConstantTimeEq(int32(len(authToken)), int32(len(storedAuthToken))) == 1 {
+		if subtle.ConstantTimeCompare([]byte(authToken), []byte(storedAuthToken)) == 0 {
+			return errors.New("Auth Token Invalid")
+		}
+	} else {
+		if subtle.ConstantTimeCompare([]byte(storedAuthToken), []byte(storedAuthToken)) == 1 {
+			return errors.New("Auth Token Invalid")
+		}
+	}
+
+	// Return an error if the token matched, but is expired.
+	if storedAuthTokenExpiry.Sub(time.Now()) <= authExpiryGracePeriod {
+		return errors.New("Token is expired")
+	}
+
+	return nil
 }
 
 // userExists retruns true if the user with the specified handle exists.

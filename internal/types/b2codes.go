@@ -17,6 +17,7 @@ const (
 	OffsetAuth                  = 500
 	OffsetMMR                   = 600
 	OffsetGetProfile            = 700
+	OffsetUpdateProfile         = 750
 	OffsetLeaderboards          = 800
 	OffsetGetMatchHistory       = 900
 )
@@ -64,6 +65,8 @@ const (
 	AuthInsufficientPermissions
 	AuthUsernameOrPasswordIncorrect
 	AuthPrivilegeInsufficient
+	AuthTokenAuthFailed
+	AuthTokenUserNotFound
 )
 
 // Update MMR errors.
@@ -91,4 +94,10 @@ const (
 const (
 	MatchHistoryGetPublicIDMising B2ResultCode = iota + OffsetGetMatchHistory
 	MatchHistoryGetPublicIDNotFound
+)
+
+// Update profile errors.
+const (
+	ProfileAvatarUpdateAvatarMissing B2ResultCode = iota + OffsetUpdateProfile
+	ProfileAvatarUpdateAuthTokenMissing
 )

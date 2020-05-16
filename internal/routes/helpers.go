@@ -99,6 +99,42 @@ func validateUCRFields(target types.UserCreationRequest) (ok bool, code types.B2
 	return ok, code, info
 }
 
+// validateAURFields returns true if the fields in an avatar update request are valid. If null, this would
+// suggest that the JSON string parsing process failed, due to a field being missage or of an incorrect type.
+// Returns true when the request is considered to be valid, and returns a result code and some relevant info
+// if invalid.
+func validateAURFields(target types.AvatarUpdateRequest) (ok bool, code types.B2ResultCode, info string) {
+
+	// Declare some variables to store the field name and type, for building the info string
+	// when an error is detected.
+	var field string
+	var expectedType string
+
+	// Check each struct member to see if they are nil - which would indicate that there was an error, and
+	// the request is invalid. Set valus for the error code, as well as field and expected type.
+	if target.Avatar == nil {
+		field = "avatar"
+		code = types.ProfileAvatarUpdateAvatarMissing
+		expectedType = "uint8"
+	} else if target.AuthToken == nil {
+		field = "authtoken"
+		code = types.ProfileAvatarUpdateAuthTokenMissing
+		expectedType = "string"
+	} else {
+
+		// If there was no error, set the return boolean to true, so the caller is aware that the specified update
+		// request was valid.
+		ok = true
+	}
+
+	// If the field variable has a value, then there was at least one error - so create the info string to be returned.
+	if len(field) != 0 {
+		info = fmt.Sprintf("Field (%v of type %v) not found, or could not be parsed due to incorrect typing", field, expectedType)
+	}
+
+	return ok, code, info
+}
+
 // validateMMRUpdateFields returns true if a handle meets the requirements for this application.
 func validateHandleLength(handle string) (valid bool, code types.B2ResultCode, info string) {
 
@@ -289,4 +325,29 @@ func packageMatchHistoryError(mhError error) (response types.LambdaResponse) {
 
 	// Package and return the code and message payload as a lambda response.
 	return types.MakeLambdaResponse(400, code, payload)
+}
+
+// packageAuthTokenCheckError creates a lamda response based on the auth token check error.
+func packageAuthTokenCheckError(publicID string, err error) (response types.LambdaResponse) {
+
+	// Declare variables for the code and payload, to be set depending on the error.
+	code := types.DatabaseError
+	htmlCode := types.HTTPCode(401)
+	payload := ""
+
+	// Depending on the contents of the error, determine the code and message body.
+	// Unexpected errors are packaged with a generic message.
+	if strings.Contains(err.Error(), "The specified user is banned") {
+		payload = fmt.Sprintf("Auth Token Auth Error - player [ %v ] is banned", publicID)
+	} else if strings.Contains(err.Error(), "Token is expired") {
+		payload = fmt.Sprintf("Auth Token Auth Error - specified token is expired")
+	} else if strings.Contains(err.Error(), "Auth Token Invalid") {
+		payload = fmt.Sprintf("Auth Token Auth Error - token is not valid")
+	} else {
+		htmlCode = types.HTTPCode(400)
+		payload = fmt.Sprintf("Unknown database error: %v", err.Error())
+	}
+
+	// Package and return the code and message payload as a lambda response.
+	return types.MakeLambdaResponse(htmlCode, code, payload)
 }

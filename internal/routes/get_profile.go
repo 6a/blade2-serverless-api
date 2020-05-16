@@ -32,7 +32,7 @@ func GetProfile(ctx context.Context, request events.APIGatewayProxyRequest) (r t
 	}
 
 	// Attempt to get the database ID for the user specified by public ID.
-	DBID, err := database.GetDBID(pid)
+	DBID, err := database.GetDatabaseID(pid)
 	if err != nil {
 		r = packageGenericError(404, types.ProfileGetPublicIDNotFound, errors.New("No matching profile found"))
 		return r, nil

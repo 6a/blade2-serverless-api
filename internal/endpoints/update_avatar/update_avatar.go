@@ -7,30 +7,25 @@
 package main
 
 import (
-	"log"
+	"context"
 
 	"github.com/6a/blade-ii-api/internal/database"
 	"github.com/6a/blade-ii-api/internal/routes"
+	"github.com/6a/blade-ii-api/internal/types"
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 )
 
-// This version of the main function is for running locally.
+// functionWrapper is used so that this file can easily be copied and converted for use with another route.
+func functionWrapper(ctx context.Context, request events.APIGatewayProxyRequest) (r types.LambdaResponse, err error) {
+	return routes.UpdateAvatar(ctx, request)
+}
+
 func main() {
 
 	// Initialize the database package.
 	database.Init()
 
-	// Create a new empty AWS API gateway proxy request.
-	ev := events.APIGatewayProxyRequest{}
-
-	// Perform a test call to one of the routes.
-	r, err := routes.UpdateAvatar(nil, ev)
-
-	// Check for an error.
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Print the returned result on success.
-	log.Print(r)
+	// Start the lambda function handler.
+	lambda.Start(functionWrapper)
 }

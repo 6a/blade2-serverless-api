@@ -30,7 +30,7 @@ func GetMatchHistory(ctx context.Context, request events.APIGatewayProxyRequest)
 	}
 
 	// Attempt to get the database ID for the user specified by public ID.
-	databaseID, err := database.GetDBID(pid)
+	databaseID, err := database.GetDatabaseID(pid)
 	if err != nil {
 		r = packageGenericError(404, types.MatchHistoryGetPublicIDNotFound, errors.New("Public ID not found"))
 		return r, nil

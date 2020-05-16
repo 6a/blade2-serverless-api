@@ -23,3 +23,9 @@ type MMRUpdateRequest struct {
 	Player2ID *uint64     `json:"player2id"`
 	Winner    *elo.Player `json:"winner"`
 }
+
+// AvatarUpdateRequest describes the request body format for an avatar update request.
+type AvatarUpdateRequest struct {
+	Avatar    *uint8  `json:"avatar"`
+	AuthToken *string `json:"authtoken"`
+}
