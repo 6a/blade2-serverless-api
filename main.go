@@ -22,9 +22,13 @@ func main() {
 
 	// Create a new empty AWS API gateway proxy request.
 	ev := events.APIGatewayProxyRequest{}
+	ev.QueryStringParameters = make(map[string]string, 0)
+	ev.QueryStringParameters["from"] = "0"
+	ev.QueryStringParameters["count"] = "100"
+	ev.QueryStringParameters["pid"] = "bqsjm7aa8s8c72o111u0"
 
 	// Perform a test call to one of the routes.
-	r, err := routes.UpdateAvatar(nil, ev)
+	r, err := routes.GetLeaderboards(nil, ev)
 
 	// Check for an error.
 	if err != nil {

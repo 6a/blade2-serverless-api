@@ -611,9 +611,6 @@ func GetLeaderboards(publicID string, start uint64, count uint64) (leaderboards 
 				leaderboards.User.WinRatio = *winRatio
 			}
 
-			// Write the determined win ratio into the return variable for the specific user.
-			leaderboards.User.WinRatio = *winRatio
-
 			// Also write the leaderboards size to the retrun variable for the specific user.
 			leaderboards.User.OutOf = leaderboardsCount
 		}
